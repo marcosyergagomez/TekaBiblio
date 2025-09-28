@@ -38,10 +38,12 @@ bower_components
 build/Release
 
 # Dependency directories
-node_modules/
-jspm_packages/
-dist/
-pnpm-debug.log*
+**/node_modules/
+**/jspm_packages/
+**/dist/
+**/pnpm-debug.log*
+**/.pnpm-store/
+**/pnpm-lock.yaml
 .env
 # Snowpack dependency directory (https://snowpack.dev/)
 web_modules/
