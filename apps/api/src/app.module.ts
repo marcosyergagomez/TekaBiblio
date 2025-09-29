@@ -4,7 +4,7 @@ import { AppService } from './app.service';
 import { HealthController } from './health/health.controller';
 @Module({
   imports: [],
-  controllers: [AppController,HealthController],
+  controllers: [AppController, HealthController],
   providers: [AppService],
 })
 export class AppModule {}
