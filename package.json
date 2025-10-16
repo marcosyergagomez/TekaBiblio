@@ -21,7 +21,8 @@
     "test:cov": "pnpm -r --filter ./apps/* test:cov",
     "test:e2e": "pnpm -C apps/api test:e2e",
     "clean": "rimraf node_modules pnpm-lock.yaml && pnpm -r --filter ./apps/* run clean",
-    "ci": "pnpm lint && pnpm typecheck && pnpm test"
+    "ci": "pnpm lint && pnpm typecheck && pnpm test",
+    "prepare": "husky"
   },
   "devDependencies": {
     "@eslint/js": "^9.18.0",
@@ -31,6 +32,7 @@
     "eslint": "9.36.0",
     "eslint-plugin-import": "2.32.0",
     "eslint-plugin-simple-import-sort": "12.1.1",
+    "husky": "9.1.7",
     "prettier": "3.6.2",
     "rimraf": "^6.0.0"
   },
