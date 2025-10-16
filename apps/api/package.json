@@ -21,8 +21,7 @@
     "db:deploy": "prisma migrate deploy",
     "db:generate": "prisma generate",
     "db:seed": "tsx prisma/seed.ts",
-    "clean": "rimraf dist",
-    "prepare": "husky"
+    "clean": "rimraf dist"
   },
   "dependencies": {
     "@nestjs/common": "^11.0.1",
