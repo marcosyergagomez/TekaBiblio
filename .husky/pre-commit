@@ -1,9 +1,16 @@
-#!/bin/sh
-. "$(dirname "$0")/_/husky.sh"
-
 echo "✅ Husky monorepo hook ejecutándose"
-cd apps/api
+# Si hay cambios en apps/api → lint backend
+if git diff --cached --name-only | grep -q '^apps/api/'; then
+  echo "🔍 Linting API..."
+  cd apps/api || exit 1
+  pnpm lint || exit 1
+  cd ../..
+fi
 
-# Opcional: ejecuta lint o tests del backend
-pnpm lint
-pnpm test
+# Si hay cambios en apps/web → lint frontend
+if git diff --cached --name-only | grep -q '^apps/web/'; then
+  echo "🔍 Linting Web..."
+  cd apps/web || exit 1
+  pnpm lint || exit 1
+  cd ../..
+fi
