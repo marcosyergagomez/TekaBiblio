@@ -3,7 +3,7 @@
 Gestor de Biblioteca desarrollado como proyecto educativo/profesional. Permite administrar **materiales**, **ejemplares**, **préstamos**, **reservas**, **salas/puestos**, **eventos** y **multas** en una red de bibliotecas.
 
 > Monorepo con **pnpm workspaces**: `apps/api` (NestJS) y `apps/web` (frontend).
-> **Estado**: Bootstrap en progreso (día 1: base del repo y fundamentos).
+> **Estado**: MVP funcional completo para demo (API + Web + CI + Release).
 
 ---
 
@@ -19,7 +19,9 @@ Gestor de Biblioteca desarrollado como proyecto educativo/profesional. Permite a
 - [Desarrollo](#-desarrollo)
 - [Producción local](#-producción-local)
 - [Pruebas](#-pruebas)
+- [Release y Deploy](#-release-y-deploy)
 - [Roadmap](#-roadmap)
+- [Biblia del proyecto](#-biblia-del-proyecto)
 - [Contribución](#-contribución)
 - [Licencia](#-licencia)
 
@@ -98,6 +100,11 @@ pnpm install
 ```bash
 docker compose up -d
 ```
+
+> MySQL inicializa automaticamente esquema y seed desde `apps/api/database/schema-v1.sql` y `apps/api/database/seed-v1.sql` en el primer arranque (volumen vacio).
+>
+> Si ya tenias un volumen MySQL creado antes de `auth_sessions`, aplica la migracion incremental:
+> `docker compose exec db sh -lc "mysql -uroot -p${MYSQL_ROOT_PASSWORD:-root} ${MYSQL_DATABASE:-tekabiblio} < /docker-entrypoint-initdb.d/migrations/2026-04-11-auth-sessions.sql"`
 
 ---
 
@@ -223,6 +230,36 @@ pnpm dev               # levanta api + web
 - Swagger: http://localhost:3000/docs  
 - Web: http://localhost:5173
 
+### Autenticacion en desarrollo (headers)
+Los endpoints privados del API usan guardas por headers en modo desarrollo:
+- `x-user-id`
+- `x-user-role` (`admin_global`, `admin_sede`, `bibliotecario`, `socio`, `invitado`)
+- `x-branch-id` (obligatorio para `admin_sede` y `bibliotecario` en operaciones con alcance de sede)
+- `x-member-id` (obligatorio para rol `socio` en endpoints privados con alcance por miembro)
+
+Alternativa recomendada: autenticacion JWT por bearer token.
+- Login: `POST /auth/login` con body `{ "email": "...", "password": "Demo12345!" }`
+- Header en privados: `Authorization: Bearer <accessToken>`
+- Refresh: `POST /auth/refresh` con body `{ "refreshToken": "..." }` (rota refresh token)
+- Logout: `POST /auth/logout` con body `{ "refreshToken": "..." }` (revoca sesion)
+- Logout global: `POST /auth/logout-all` con bearer token (revoca todas las sesiones activas del usuario)
+- Perfil actual: `GET /auth/me` con bearer token
+
+Variables recomendadas para JWT:
+- `JWT_SECRET` (default desarrollo: `dev-secret-change-me`)
+- `JWT_EXPIRES_IN` (default: `8h`)
+- `REFRESH_TOKEN_EXPIRES_DAYS` (default: `14`)
+
+Endpoints utiles para demo MVP:
+- Catalogo paginado: `GET /materials?page=1&pageSize=20&q=dune&materialType=LIBRO&homeBranchId=branch_centro&availableOnly=true`
+- Ejemplares paginados: `GET /copies?page=1&pageSize=20&materialId=...&branchId=...&status=AVAILABLE`
+- Actualizar material: `PATCH /materials/:materialId`
+- Eliminar material: `DELETE /materials/:materialId` (solo si no tiene ejemplares)
+- Reporte ingresos: `GET /reports/income`
+- Reporte perdidas: `GET /reports/losses`
+- Reporte popularidad: `GET /reports/popularity?limit=5`
+- Dashboard ejecutivo: `GET /reports/dashboard`
+
 ---
 
 ## 🏁 Producción local
@@ -243,6 +280,19 @@ pnpm start:prod:both        # backend + preview estático del front
 
 ---
 
+## 🚢 Release y Deploy
+- CI continua: `.github/workflows/ci.yml` (lint + typecheck + unit + e2e).
+- Release automatizado: `.github/workflows/release.yml`.
+- Build y push de imagenes:
+  - `ghcr.io/<owner>/tekabiblio-api`
+  - `ghcr.io/<owner>/tekabiblio-web`
+- Dockerfiles de produccion:
+  - `apps/api/Dockerfile`
+  - `apps/web/Dockerfile`
+- Guia de release/deploy: `docs/DEPLOY_RELEASE.md`.
+
+---
+
 ## 🗺️ Roadmap
 - [ ] Bootstrap NestJS (Pino, Helmet, CORS, Throttler, Swagger, `/health`)
 - [ ] Docker Compose (MySQL, Redis, Adminer)
@@ -253,6 +303,19 @@ pnpm start:prod:both        # backend + preview estático del front
 - [ ] Multas + reportes
 - [ ] CI (GitHub Actions)
 - [ ] Deploy (Render/Railway + Vercel/Netlify)
+
+---
+
+## 📘 Biblia del proyecto
+- Documento vivo de alcance, logica de negocio y roadmap: [`docs/BIBLIA_PROYECTO_v2.md`](docs/BIBLIA_PROYECTO_v2.md)
+- Backlog tecnico por sprints (API y Web): [`docs/BACKLOG_TECNICO_SPRINTS.md`](docs/BACKLOG_TECNICO_SPRINTS.md)
+- Guia final de demo (script para recruiters): [`docs/GUIA_DEMO_FINAL.md`](docs/GUIA_DEMO_FINAL.md)
+- Guia de release/deploy automatizado: [`docs/DEPLOY_RELEASE.md`](docs/DEPLOY_RELEASE.md)
+- Esquema inicial de base de datos (SQL): [`apps/api/database/schema-v1.sql`](apps/api/database/schema-v1.sql)
+- Esquema inicial de base de datos (guia): [`docs/DB_SCHEMA_INICIAL.md`](docs/DB_SCHEMA_INICIAL.md)
+- Matriz de permisos MVP: [`docs/MATRIZ_PERMISOS_MVP.md`](docs/MATRIZ_PERMISOS_MVP.md)
+- Reglas directas API/frontend: [`docs/REGLAS_NEGOCIO_API_FRONTEND.md`](docs/REGLAS_NEGOCIO_API_FRONTEND.md)
+- Seed demo para recruiters: [`docs/seed/seed-demo-mvp.json`](docs/seed/seed-demo-mvp.json)
 
 ---
 

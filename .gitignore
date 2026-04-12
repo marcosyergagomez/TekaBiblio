@@ -47,6 +47,7 @@ build/Release
 .env
 # Snowpack dependency directory (https://snowpack.dev/)
 web_modules/
+apps/api/data/
 
 # TypeScript cache
 *.tsbuildinfo

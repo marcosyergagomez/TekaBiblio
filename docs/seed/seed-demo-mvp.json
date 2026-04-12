@@ -1,0 +1,129 @@
+{
+  "meta": {
+    "project": "TekaBiblio",
+    "version": "mvp-demo-v1",
+    "generatedAt": "2026-04-09",
+    "currency": "EUR"
+  },
+  "organization": {
+    "id": "org_tekabiblio",
+    "name": "TekaBiblio Network",
+    "tenantMode": "single"
+  },
+  "branches": [
+    { "id": "branch_centro", "name": "Centro", "city": "Madrid" },
+    { "id": "branch_norte", "name": "Norte", "city": "Madrid" },
+    { "id": "branch_sur", "name": "Sur", "city": "Madrid" },
+    { "id": "branch_este", "name": "Este", "city": "Madrid" },
+    { "id": "branch_oeste", "name": "Oeste", "city": "Madrid" }
+  ],
+  "membershipLevels": [
+    { "id": "BRONCE", "name": "Bronce", "loanLimit": 2, "renewalLimit": 1, "priceAdjustment": 0.0, "shipmentFee": 2.99 },
+    { "id": "PLATA", "name": "Plata", "loanLimit": 4, "renewalLimit": 2, "priceAdjustment": -0.1, "shipmentFee": 1.5 },
+    { "id": "ORO", "name": "Oro", "loanLimit": 6, "renewalLimit": 3, "priceAdjustment": -0.2, "shipmentFee": 0.0 }
+  ],
+  "users": [
+    { "id": "u_admin_global", "email": "admin.global@tekabiblio.local", "role": "admin_global", "branchId": "branch_centro" },
+    { "id": "u_admin_norte", "email": "admin.norte@tekabiblio.local", "role": "admin_sede", "branchId": "branch_norte" },
+    { "id": "u_biblio_norte", "email": "biblio.norte@tekabiblio.local", "role": "bibliotecario", "branchId": "branch_norte" },
+    { "id": "u_member_bronce", "email": "socio.bronce@tekabiblio.local", "role": "socio", "membershipLevel": "BRONCE", "branchId": "branch_sur" },
+    { "id": "u_member_plata", "email": "socio.plata@tekabiblio.local", "role": "socio", "membershipLevel": "PLATA", "branchId": "branch_este" },
+    { "id": "u_member_oro", "email": "socio.oro@tekabiblio.local", "role": "socio", "membershipLevel": "ORO", "branchId": "branch_oeste" }
+  ],
+  "credentialsDemo": [
+    { "email": "admin.global@tekabiblio.local", "password": "Demo12345!" },
+    { "email": "admin.norte@tekabiblio.local", "password": "Demo12345!" },
+    { "email": "biblio.norte@tekabiblio.local", "password": "Demo12345!" },
+    { "email": "socio.bronce@tekabiblio.local", "password": "Demo12345!" },
+    { "email": "socio.plata@tekabiblio.local", "password": "Demo12345!" },
+    { "email": "socio.oro@tekabiblio.local", "password": "Demo12345!" }
+  ],
+  "materialTypes": ["LIBRO", "PELICULA", "JUEGO_PC", "JUEGO_PLAYSTATION", "JUEGO_XBOX"],
+  "materials": [
+    { "id": "m_book_dune", "name": "Dune", "type": "LIBRO", "releaseDate": "1965-08-01", "homeBranchId": "branch_centro", "basePrice": 2.5 },
+    { "id": "m_book_hobbit", "name": "The Hobbit", "type": "LIBRO", "releaseDate": "1937-09-21", "homeBranchId": "branch_norte", "basePrice": 2.5 },
+    { "id": "m_movie_matrix", "name": "The Matrix", "type": "PELICULA", "releaseDate": "1999-03-31", "homeBranchId": "branch_sur", "basePrice": 3.5 },
+    { "id": "m_movie_inception", "name": "Inception", "type": "PELICULA", "releaseDate": "2010-07-16", "homeBranchId": "branch_este", "basePrice": 3.5 },
+    { "id": "m_game_pc_witcher3", "name": "The Witcher 3", "type": "JUEGO_PC", "releaseDate": "2015-05-19", "homeBranchId": "branch_oeste", "basePrice": 4.0 },
+    { "id": "m_game_ps_fifa24", "name": "EA Sports FC 24", "type": "JUEGO_PLAYSTATION", "releaseDate": "2023-09-29", "homeBranchId": "branch_norte", "basePrice": 5.0 },
+    { "id": "m_game_xbox_halo", "name": "Halo Infinite", "type": "JUEGO_XBOX", "releaseDate": "2021-12-08", "homeBranchId": "branch_sur", "basePrice": 5.0 },
+    { "id": "m_game_ps_spiderman2", "name": "Spider-Man 2", "type": "JUEGO_PLAYSTATION", "releaseDate": "2023-10-20", "homeBranchId": "branch_centro", "basePrice": 5.0 },
+    { "id": "m_game_xbox_forza", "name": "Forza Horizon 5", "type": "JUEGO_XBOX", "releaseDate": "2021-11-09", "homeBranchId": "branch_este", "basePrice": 5.0 },
+    { "id": "m_book_clean_code", "name": "Clean Code", "type": "LIBRO", "releaseDate": "2008-08-01", "homeBranchId": "branch_oeste", "basePrice": 2.5 }
+  ],
+  "copies": [
+    { "id": "c_dune_01", "materialId": "m_book_dune", "branchId": "branch_centro", "status": "AVAILABLE" },
+    { "id": "c_dune_02", "materialId": "m_book_dune", "branchId": "branch_norte", "status": "AVAILABLE" },
+    { "id": "c_hobbit_01", "materialId": "m_book_hobbit", "branchId": "branch_norte", "status": "AVAILABLE" },
+    { "id": "c_matrix_01", "materialId": "m_movie_matrix", "branchId": "branch_sur", "status": "AVAILABLE" },
+    { "id": "c_inception_01", "materialId": "m_movie_inception", "branchId": "branch_este", "status": "AVAILABLE" },
+    { "id": "c_witcher_01", "materialId": "m_game_pc_witcher3", "branchId": "branch_oeste", "status": "AVAILABLE" },
+    { "id": "c_fc24_01", "materialId": "m_game_ps_fifa24", "branchId": "branch_norte", "status": "AVAILABLE" },
+    { "id": "c_halo_01", "materialId": "m_game_xbox_halo", "branchId": "branch_sur", "status": "AVAILABLE" },
+    { "id": "c_spiderman2_01", "materialId": "m_game_ps_spiderman2", "branchId": "branch_centro", "status": "AVAILABLE" },
+    { "id": "c_forza_01", "materialId": "m_game_xbox_forza", "branchId": "branch_este", "status": "AVAILABLE" },
+    { "id": "c_cleancode_01", "materialId": "m_book_clean_code", "branchId": "branch_oeste", "status": "AVAILABLE" }
+  ],
+  "policy": {
+    "loanDays": {
+      "LIBRO": { "BRONCE": 14, "PLATA": 21, "ORO": 30 },
+      "PELICULA": { "BRONCE": 3, "PLATA": 5, "ORO": 7 },
+      "JUEGO_PC": { "BRONCE": 5, "PLATA": 7, "ORO": 10 },
+      "JUEGO_PLAYSTATION": { "BRONCE": 5, "PLATA": 7, "ORO": 10 },
+      "JUEGO_XBOX": { "BRONCE": 5, "PLATA": 7, "ORO": 10 }
+    },
+    "lateFees": {
+      "LIBRO": { "daily": 0.5, "cap": 15.0 },
+      "PELICULA": { "daily": 1.0, "cap": 12.0 },
+      "JUEGO_PC": { "daily": 1.5, "cap": 20.0 },
+      "JUEGO_PLAYSTATION": { "daily": 1.5, "cap": 20.0 },
+      "JUEGO_XBOX": { "daily": 1.5, "cap": 20.0 }
+    },
+    "reservationPickupHours": 48,
+    "reservationExpireFee": 1.0,
+    "blockRules": {
+      "debtThreshold": 20.0,
+      "singleOverdueDays": 10,
+      "overduesIn60Days": 3,
+      "autoUnblockDebtBelow": 5.0
+    },
+    "shipment": {
+      "baseFee": 2.99,
+      "targetSlaHours": 48,
+      "maxSlaBusinessDays": 3,
+      "statusFlow": ["REQUESTED", "PREPARING", "IN_TRANSIT", "ARRIVED", "READY_FOR_PICKUP", "DELIVERED"],
+      "exceptionFlow": ["CANCELLED", "LOST"]
+    }
+  },
+  "demoScenarios": [
+    {
+      "id": "scenario_01_cross_branch_reservation",
+      "title": "Socio oro reserva en otra sede sin coste de envio",
+      "memberId": "u_member_oro",
+      "fromBranchId": "branch_oeste",
+      "targetCopyId": "c_fc24_01",
+      "expected": ["shipmentCreated", "shipmentFee=0.00", "reservationReadyWithinSLA"]
+    },
+    {
+      "id": "scenario_02_bronze_late_fee",
+      "title": "Socio bronce devuelve tarde y genera multa",
+      "memberId": "u_member_bronce",
+      "loanCopyId": "c_matrix_01",
+      "simulatedDelayDays": 4,
+      "expected": ["lateFeeApplied", "memberMayBeBlockedIfDebtThresholdReached"]
+    },
+    {
+      "id": "scenario_03_branch_admin_scope",
+      "title": "Admin de sede no puede editar otra sede",
+      "actorId": "u_admin_norte",
+      "forbiddenBranchId": "branch_sur",
+      "expected": ["forbiddenScopeError"]
+    },
+    {
+      "id": "scenario_04_reports",
+      "title": "Admin global visualiza ingresos y top materiales",
+      "actorId": "u_admin_global",
+      "expected": ["incomeReport", "topBorrowedReport", "bottomBorrowedReport", "lossReport"]
+    }
+  ]
+}
