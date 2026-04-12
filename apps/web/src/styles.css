@@ -147,6 +147,18 @@ input {
   gap: 8px;
 }
 
+.locale-switcher {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.locale-switcher > span {
+  font-size: 0.9rem;
+  color: var(--muted);
+}
+
 .chip {
   background: #d9f3eb;
   color: #114c3e;
@@ -157,10 +169,44 @@ input {
   background: #bee7da;
 }
 
+.locale-switcher .chip.active {
+  background: #9fdac8;
+  font-weight: 700;
+}
+
 .inline-form {
   display: flex;
   gap: 10px;
   margin-bottom: 14px;
+}
+
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.section-head h2 {
+  margin: 0;
+}
+
+.icon-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  background: #d9f3eb;
+  color: #114c3e;
+  border-color: transparent;
+}
+
+.icon-toggle:hover {
+  background: #bee7da;
+}
+
+.lang-glyph {
+  fill: currentColor;
 }
 
 .inline-form input {

@@ -1,0 +1,202 @@
+{
+  "app": {
+    "name": "TekaBiblio",
+    "activeRole": "Active role: {{role}}"
+  },
+  "nav": {
+    "profile": "Profile",
+    "catalog": "Catalog",
+    "loans": "My loans",
+    "reservations": "My reservations",
+    "staff": "Staff operations"
+  },
+  "language": {
+    "label": "Language",
+    "es": "ES",
+    "en": "EN"
+  },
+  "auth": {
+    "logout": "Sign out",
+    "loginTitle": "Demo Access",
+    "loginDescription": "Frontend connected to real API with refresh token and role scope.",
+    "email": "Email",
+    "password": "Password",
+    "submitIdle": "Sign in",
+    "submitLoading": "Signing in...",
+    "loginError": "Invalid credentials or server unavailable.",
+    "demoUsers": {
+      "adminGlobal": "Global Admin",
+      "adminBranch": "Branch Admin",
+      "librarian": "Librarian",
+      "memberGold": "Gold Member"
+    }
+  },
+  "common": {
+    "loading": "Loading...",
+    "notAvailable": "-",
+    "currency": "EUR"
+  },
+  "profile": {
+    "title": "Current profile",
+    "loadError": "Could not load current profile.",
+    "labels": {
+      "userId": "User ID",
+      "role": "Role",
+      "branch": "Branch",
+      "memberId": "Member ID"
+    }
+  },
+  "catalog": {
+    "title": "Catalog",
+    "searchPlaceholder": "Search by title",
+    "search": "Search",
+    "table": {
+      "title": "Title",
+      "type": "Type",
+      "branch": "Branch",
+      "price": "Price",
+      "copies": "Copies"
+    }
+  },
+  "loans": {
+    "title": "My loans",
+    "table": {
+      "id": "ID",
+      "type": "Type",
+      "status": "Status",
+      "dueDate": "Due date",
+      "total": "Total"
+    }
+  },
+  "reservations": {
+    "title": "My reservations",
+    "table": {
+      "id": "ID",
+      "materialId": "Material",
+      "pickupBranch": "Pickup branch",
+      "status": "Status",
+      "queue": "Queue",
+      "expiresAt": "Expires at"
+    }
+  },
+  "staff": {
+    "title": "Staff panel",
+    "description": "Operational front-desk demo flows: create, edit, checkout, penalties and payments.",
+    "resultTitle": "Result",
+    "resultIdle": "No recent operations",
+    "resultSuccess": "{{label}} OK\n{{payload}}",
+    "resultError": "{{label}} ERROR\n{{message}}",
+    "unknownError": "Operation failed",
+    "actions": {
+      "createMaterial": "Create material",
+      "updateMaterial": "Update material",
+      "createLoan": "Create loan",
+      "createPenalty": "Create penalty",
+      "registerPayment": "Register payment",
+      "loadDashboard": "Load dashboard"
+    },
+    "forms": {
+      "createMaterial": {
+        "title": "Create material",
+        "placeholders": {
+          "title": "Title",
+          "homeBranchId": "homeBranchId"
+        },
+        "button": "Create material"
+      },
+      "updateMaterial": {
+        "title": "Update material",
+        "placeholders": {
+          "materialId": "materialId",
+          "title": "New title",
+          "basePrice": "New price"
+        },
+        "button": "Update material"
+      },
+      "createLoan": {
+        "title": "Loan checkout",
+        "placeholders": {
+          "memberId": "memberId",
+          "copyId": "copyId",
+          "pickupBranchId": "pickupBranchId"
+        },
+        "button": "Create loan"
+      },
+      "createPenalty": {
+        "title": "Register penalty",
+        "placeholders": {
+          "memberId": "memberId",
+          "reason": "Reason"
+        },
+        "button": "Create penalty"
+      },
+      "registerPayment": {
+        "title": "Cash desk payment",
+        "placeholders": {
+          "memberId": "memberId",
+          "penaltyId": "penaltyId (optional)",
+          "loanId": "loanId (optional)"
+        },
+        "button": "Register payment"
+      }
+    },
+    "dashboard": {
+      "title": "Executive dashboard",
+      "description": "Quick view of current environment revenue and losses.",
+      "loans": "Loans",
+      "revenue": "Revenue",
+      "losses": "Losses",
+      "lostCopies": "Lost copies"
+    }
+  },
+  "enums": {
+    "role": {
+      "admin_global": "Global Admin",
+      "admin_sede": "Branch Admin",
+      "bibliotecario": "Librarian",
+      "socio": "Member",
+      "invitado": "Guest"
+    },
+    "branch": {
+      "branch_centro": "Central",
+      "branch_norte": "North",
+      "branch_sur": "South",
+      "branch_este": "East",
+      "branch_oeste": "West"
+    },
+    "materialType": {
+      "LIBRO": "Book",
+      "PELICULA": "Movie",
+      "JUEGO_PC": "PC game",
+      "JUEGO_PLAYSTATION": "PlayStation game",
+      "JUEGO_XBOX": "Xbox game"
+    },
+    "loanStatus": {
+      "ACTIVE": "Active",
+      "RETURNED": "Returned"
+    },
+    "reservationStatus": {
+      "QUEUED": "Queued",
+      "READY_FOR_PICKUP": "Ready for pickup",
+      "FULFILLED": "Fulfilled",
+      "EXPIRED": "Expired",
+      "CANCELLED": "Cancelled"
+    },
+    "membershipLevel": {
+      "BRONCE": "Bronze",
+      "PLATA": "Silver",
+      "ORO": "Gold"
+    },
+    "penaltyType": {
+      "LATE_RETURN": "Late return",
+      "RESERVATION_EXPIRE": "Reservation expired",
+      "LOST_COPY": "Lost copy",
+      "DAMAGE": "Damage"
+    },
+    "paymentMethod": {
+      "SIMULATED": "Simulated",
+      "CASH": "Cash",
+      "CARD": "Card"
+    }
+  }
+}

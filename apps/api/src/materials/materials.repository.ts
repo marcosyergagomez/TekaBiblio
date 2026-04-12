@@ -8,6 +8,7 @@ import { randomUUID } from 'node:crypto';
 import { RowDataPacket } from 'mysql2/promise';
 import { SqlStoreService } from '../database/sql-store.service';
 import { MaterialType } from '../loans/loan-policies';
+import { paginateFromQuery } from '../common/pagination';
 import { CreateCopyDto } from './dto/create-copy.dto';
 import { CreateMaterialDto } from './dto/create-material.dto';
 import { ListCopiesDto } from './dto/list-copies.dto';
@@ -237,8 +238,6 @@ export class MaterialsRepository {
     page: number;
     pageSize: number;
   }> {
-    const page = query.page ?? 1;
-    const pageSize = query.pageSize ?? 20;
     let items = await this.listMaterials();
 
     if (query.q) {
@@ -266,15 +265,7 @@ export class MaterialsRepository {
       items = items.filter((item) => availableMaterialIds.has(item.id));
     }
 
-    const total = items.length;
-    const start = (page - 1) * pageSize;
-
-    return {
-      items: items.slice(start, start + pageSize),
-      total,
-      page,
-      pageSize,
-    };
+    return paginateFromQuery(items, query, 20);
   }
 
   async searchCopies(query: ListCopiesDto): Promise<{
@@ -283,8 +274,6 @@ export class MaterialsRepository {
     page: number;
     pageSize: number;
   }> {
-    const page = query.page ?? 1;
-    const pageSize = query.pageSize ?? 20;
     let items = await this.listCopies();
 
     if (query.materialId) {
@@ -299,15 +288,7 @@ export class MaterialsRepository {
       items = items.filter((item) => item.status === query.status);
     }
 
-    const total = items.length;
-    const start = (page - 1) * pageSize;
-
-    return {
-      items: items.slice(start, start + pageSize),
-      total,
-      page,
-      pageSize,
-    };
+    return paginateFromQuery(items, query, 20);
   }
 
   async updateMaterial(

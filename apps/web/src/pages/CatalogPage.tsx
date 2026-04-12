@@ -1,5 +1,8 @@
 import { FormEvent, useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
+import { LanguageSwitcher } from '../components/LanguageSwitcher';
 import { api } from '../lib/api';
+import { branchLabel, materialTypeLabel } from '../lib/labels';
 
 type Material = {
   id: string;
@@ -17,6 +20,7 @@ type Copy = {
 };
 
 export function CatalogPage() {
+  const { t } = useTranslation();
   const [query, setQuery] = useState('');
   const [materials, setMaterials] = useState<Material[]>([]);
   const [copies, setCopies] = useState<Copy[]>([]);
@@ -57,27 +61,30 @@ export function CatalogPage() {
 
   return (
     <section className="card">
-      <h2>Catalogo</h2>
+      <div className="section-head">
+        <h2>{t('catalog.title')}</h2>
+        <LanguageSwitcher variant="icon" />
+      </div>
       <form className="inline-form" onSubmit={submit}>
         <input
-          placeholder="Buscar por titulo"
+          placeholder={t('catalog.searchPlaceholder')}
           value={query}
           onChange={(event) => setQuery(event.target.value)}
         />
-        <button type="submit">Buscar</button>
+        <button type="submit">{t('catalog.search')}</button>
       </form>
 
-      {loading ? <p>Cargando...</p> : null}
+      {loading ? <p>{t('common.loading')}</p> : null}
 
       <div className="table-wrap">
         <table>
           <thead>
             <tr>
-              <th>Titulo</th>
-              <th>Tipo</th>
-              <th>Sede</th>
-              <th>Precio</th>
-              <th>Ejemplares</th>
+              <th>{t('catalog.table.title')}</th>
+              <th>{t('catalog.table.type')}</th>
+              <th>{t('catalog.table.branch')}</th>
+              <th>{t('catalog.table.price')}</th>
+              <th>{t('catalog.table.copies')}</th>
             </tr>
           </thead>
           <tbody>
@@ -86,9 +93,9 @@ export function CatalogPage() {
               return (
                 <tr key={material.id}>
                   <td>{material.title}</td>
-                  <td>{material.materialType}</td>
-                  <td>{material.homeBranchId}</td>
-                  <td>{material.basePrice.toFixed(2)} EUR</td>
+                  <td>{materialTypeLabel(t, material.materialType)}</td>
+                  <td>{branchLabel(t, material.homeBranchId)}</td>
+                  <td>{material.basePrice.toFixed(2)} {t('common.currency')}</td>
                   <td>{related.length}</td>
                 </tr>
               );

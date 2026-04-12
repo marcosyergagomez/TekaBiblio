@@ -1,5 +1,6 @@
 import { LoansRepository } from '../loans/loans.repository';
 import { LoansService } from '../loans/loans.service';
+import { LoanDomainPolicyService } from '../loans/loan-domain-policy.service';
 import { MaterialType, MembershipLevel } from '../loans/loan-policies';
 import { MaterialsRepository } from '../materials/materials.repository';
 import { MaterialsService } from '../materials/materials.service';
@@ -18,6 +19,7 @@ describe('ReportsService', () => {
       new LoansRepository(),
       materialsService,
       new ReservationsRepository(),
+      new LoanDomainPolicyService(),
     );
     reportsService = new ReportsService(loansService, materialsService);
   });

@@ -1,0 +1,202 @@
+{
+  "app": {
+    "name": "TekaBiblio",
+    "activeRole": "Rol activo: {{role}}"
+  },
+  "nav": {
+    "profile": "Perfil",
+    "catalog": "Catalogo",
+    "loans": "Mis prestamos",
+    "reservations": "Mis reservas",
+    "staff": "Operativa staff"
+  },
+  "language": {
+    "label": "Idioma",
+    "es": "ES",
+    "en": "EN"
+  },
+  "auth": {
+    "logout": "Cerrar sesion",
+    "loginTitle": "Acceso Demo",
+    "loginDescription": "Frontend conectado a API real con refresh token y alcance por rol.",
+    "email": "Email",
+    "password": "Password",
+    "submitIdle": "Entrar",
+    "submitLoading": "Entrando...",
+    "loginError": "Credenciales invalidas o servidor no disponible.",
+    "demoUsers": {
+      "adminGlobal": "Admin Global",
+      "adminBranch": "Admin Sede",
+      "librarian": "Bibliotecario",
+      "memberGold": "Socio Oro"
+    }
+  },
+  "common": {
+    "loading": "Cargando...",
+    "notAvailable": "-",
+    "currency": "EUR"
+  },
+  "profile": {
+    "title": "Perfil actual",
+    "loadError": "No se pudo cargar el perfil actual.",
+    "labels": {
+      "userId": "User ID",
+      "role": "Rol",
+      "branch": "Sede",
+      "memberId": "Member ID"
+    }
+  },
+  "catalog": {
+    "title": "Catalogo",
+    "searchPlaceholder": "Buscar por titulo",
+    "search": "Buscar",
+    "table": {
+      "title": "Titulo",
+      "type": "Tipo",
+      "branch": "Sede",
+      "price": "Precio",
+      "copies": "Ejemplares"
+    }
+  },
+  "loans": {
+    "title": "Mis prestamos",
+    "table": {
+      "id": "ID",
+      "type": "Tipo",
+      "status": "Estado",
+      "dueDate": "Vence",
+      "total": "Total"
+    }
+  },
+  "reservations": {
+    "title": "Mis reservas",
+    "table": {
+      "id": "ID",
+      "materialId": "Material",
+      "pickupBranch": "Sede recogida",
+      "status": "Estado",
+      "queue": "Cola",
+      "expiresAt": "Expira"
+    }
+  },
+  "staff": {
+    "title": "Panel Staff",
+    "description": "Flujos operativos de mostrador para demo: altas, ediciones, checkout, penalizaciones y cobros.",
+    "resultTitle": "Resultado",
+    "resultIdle": "Sin operaciones recientes",
+    "resultSuccess": "{{label}} OK\n{{payload}}",
+    "resultError": "{{label}} ERROR\n{{message}}",
+    "unknownError": "Operacion fallida",
+    "actions": {
+      "createMaterial": "Crear material",
+      "updateMaterial": "Actualizar material",
+      "createLoan": "Crear prestamo",
+      "createPenalty": "Crear penalizacion",
+      "registerPayment": "Registrar pago",
+      "loadDashboard": "Cargar dashboard"
+    },
+    "forms": {
+      "createMaterial": {
+        "title": "Alta de material",
+        "placeholders": {
+          "title": "Titulo",
+          "homeBranchId": "homeBranchId"
+        },
+        "button": "Crear material"
+      },
+      "updateMaterial": {
+        "title": "Edicion de material",
+        "placeholders": {
+          "materialId": "materialId",
+          "title": "Nuevo titulo",
+          "basePrice": "Nuevo precio"
+        },
+        "button": "Actualizar material"
+      },
+      "createLoan": {
+        "title": "Checkout de prestamo",
+        "placeholders": {
+          "memberId": "memberId",
+          "copyId": "copyId",
+          "pickupBranchId": "pickupBranchId"
+        },
+        "button": "Crear prestamo"
+      },
+      "createPenalty": {
+        "title": "Registrar penalizacion",
+        "placeholders": {
+          "memberId": "memberId",
+          "reason": "Motivo"
+        },
+        "button": "Crear penalizacion"
+      },
+      "registerPayment": {
+        "title": "Cobro en caja",
+        "placeholders": {
+          "memberId": "memberId",
+          "penaltyId": "penaltyId (opcional)",
+          "loanId": "loanId (opcional)"
+        },
+        "button": "Registrar pago"
+      }
+    },
+    "dashboard": {
+      "title": "Dashboard ejecutivo",
+      "description": "Consulta rapida de ingresos y perdidas del entorno actual.",
+      "loans": "Prestamos",
+      "revenue": "Revenue",
+      "losses": "Perdidas",
+      "lostCopies": "Lost Copies"
+    }
+  },
+  "enums": {
+    "role": {
+      "admin_global": "Admin Global",
+      "admin_sede": "Admin Sede",
+      "bibliotecario": "Bibliotecario",
+      "socio": "Socio",
+      "invitado": "Invitado"
+    },
+    "branch": {
+      "branch_centro": "Centro",
+      "branch_norte": "Norte",
+      "branch_sur": "Sur",
+      "branch_este": "Este",
+      "branch_oeste": "Oeste"
+    },
+    "materialType": {
+      "LIBRO": "Libro",
+      "PELICULA": "Pelicula",
+      "JUEGO_PC": "Juego PC",
+      "JUEGO_PLAYSTATION": "Juego PlayStation",
+      "JUEGO_XBOX": "Juego Xbox"
+    },
+    "loanStatus": {
+      "ACTIVE": "Activo",
+      "RETURNED": "Devuelto"
+    },
+    "reservationStatus": {
+      "QUEUED": "En cola",
+      "READY_FOR_PICKUP": "Lista para recoger",
+      "FULFILLED": "Completada",
+      "EXPIRED": "Expirada",
+      "CANCELLED": "Cancelada"
+    },
+    "membershipLevel": {
+      "BRONCE": "Bronce",
+      "PLATA": "Plata",
+      "ORO": "Oro"
+    },
+    "penaltyType": {
+      "LATE_RETURN": "Devolucion tardia",
+      "RESERVATION_EXPIRE": "Reserva expirada",
+      "LOST_COPY": "Ejemplar perdido",
+      "DAMAGE": "Dano"
+    },
+    "paymentMethod": {
+      "SIMULATED": "Simulado",
+      "CASH": "Efectivo",
+      "CARD": "Tarjeta"
+    }
+  }
+}

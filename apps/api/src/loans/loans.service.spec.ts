@@ -6,6 +6,7 @@ import { MaterialsRepository } from '../materials/materials.repository';
 import { MaterialsService } from '../materials/materials.service';
 import { ReservationsRepository } from '../reservations/reservations.repository';
 import { CreateLoanDto } from './dto/create-loan.dto';
+import { LoanDomainPolicyService } from './loan-domain-policy.service';
 import { LoansRepository } from './loans.repository';
 import { LoansService } from './loans.service';
 import { MaterialType, MembershipLevel } from './loan-policies';
@@ -20,6 +21,7 @@ describe('LoansService', () => {
       new LoansRepository(),
       materialsService,
       new ReservationsRepository(),
+      new LoanDomainPolicyService(),
     );
   });
 

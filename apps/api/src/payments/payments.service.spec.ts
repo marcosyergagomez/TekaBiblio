@@ -2,6 +2,7 @@ import { AuditRepository } from '../audit/audit.repository';
 import { AuditService } from '../audit/audit.service';
 import { LoansRepository } from '../loans/loans.repository';
 import { LoansService } from '../loans/loans.service';
+import { LoanDomainPolicyService } from '../loans/loan-domain-policy.service';
 import { MaterialsRepository } from '../materials/materials.repository';
 import { MaterialsService } from '../materials/materials.service';
 import { UserRole } from '../auth/user-role.enum';
@@ -23,6 +24,7 @@ describe('PaymentsService', () => {
       new LoansRepository(),
       materialsService,
       new ReservationsRepository(),
+      new LoanDomainPolicyService(),
     );
     const auditService = new AuditService(new AuditRepository());
     penaltiesService = new PenaltiesService(

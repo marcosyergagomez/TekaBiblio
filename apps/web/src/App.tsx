@@ -1,7 +1,10 @@
-import { FormEvent, useMemo, useState } from 'react';
+import { FormEvent, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { Link, Navigate, Route, Routes, useNavigate } from 'react-router-dom';
+import { LanguageSwitcher } from './components/LanguageSwitcher';
 import { api } from './lib/api';
 import { clearSession, getSession, setSession } from './lib/auth';
+import { roleLabel } from './lib/labels';
 import { CatalogPage } from './pages/CatalogPage';
 import { MyLoansPage } from './pages/MyLoansPage';
 import { MyReservationsPage } from './pages/MyReservationsPage';
@@ -11,13 +14,14 @@ import { StaffOpsPage } from './pages/StaffOpsPage';
 const STAFF_ROLES = new Set(['admin_global', 'admin_sede', 'bibliotecario']);
 
 const DEMO_ACCOUNTS = [
-  { label: 'Admin Global', email: 'admin.global@tekabiblio.local' },
-  { label: 'Admin Sede', email: 'admin.norte@tekabiblio.local' },
-  { label: 'Bibliotecario', email: 'biblio.norte@tekabiblio.local' },
-  { label: 'Socio Oro', email: 'socio.oro@tekabiblio.local' },
+  { labelKey: 'auth.demoUsers.adminGlobal', email: 'admin.global@tekabiblio.local' },
+  { labelKey: 'auth.demoUsers.adminBranch', email: 'admin.norte@tekabiblio.local' },
+  { labelKey: 'auth.demoUsers.librarian', email: 'biblio.norte@tekabiblio.local' },
+  { labelKey: 'auth.demoUsers.memberGold', email: 'socio.oro@tekabiblio.local' },
 ];
 
 function Layout() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const session = getSession();
 
@@ -42,17 +46,18 @@ function Layout() {
     <div className="app-shell">
       <aside className="sidebar">
         <div>
-          <h1>TekaBiblio</h1>
-          <p className="meta">Rol activo: {session.user.role}</p>
+          <h1>{t('app.name')}</h1>
+          <p className="meta">{t('app.activeRole', { role: roleLabel(t, session.user.role) })}</p>
         </div>
+        <LanguageSwitcher />
         <nav>
-          <Link to="/profile">Perfil</Link>
-          <Link to="/catalog">Catalogo</Link>
-          <Link to="/my/loans">Mis prestamos</Link>
-          <Link to="/my/reservations">Mis reservas</Link>
-          {isStaff ? <Link to="/staff">Operativa staff</Link> : null}
+          <Link to="/profile">{t('nav.profile')}</Link>
+          <Link to="/catalog">{t('nav.catalog')}</Link>
+          <Link to="/my/loans">{t('nav.loans')}</Link>
+          <Link to="/my/reservations">{t('nav.reservations')}</Link>
+          {isStaff ? <Link to="/staff">{t('nav.staff')}</Link> : null}
         </nav>
-        <button onClick={logout} className="secondary">Cerrar sesion</button>
+        <button onClick={logout} className="secondary">{t('auth.logout')}</button>
       </aside>
       <main className="content">
         <Routes>
@@ -69,13 +74,14 @@ function Layout() {
 }
 
 function LoginPage() {
+  const { t } = useTranslation();
   const navigate = useNavigate();
   const [email, setEmail] = useState('socio.oro@tekabiblio.local');
   const [password, setPassword] = useState('Demo12345!');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
-  const isLogged = useMemo(() => Boolean(getSession()), []);
+  const isLogged = Boolean(getSession());
   if (isLogged) {
     return <Navigate to="/profile" replace />;
   }
@@ -99,7 +105,7 @@ function LoginPage() {
 
       navigate('/profile', { replace: true });
     } catch {
-      setError('Credenciales invalidas o servidor no disponible.');
+      setError(t('auth.loginError'));
     } finally {
       setLoading(false);
     }
@@ -108,8 +114,10 @@ function LoginPage() {
   return (
     <div className="login-wrap">
       <div className="card login-card">
-        <h2>Acceso Demo</h2>
-        <p>Frontend conectado a API real con refresh token y alcance por rol.</p>
+        <h2>{t('auth.loginTitle')}</h2>
+        <p>{t('auth.loginDescription')}</p>
+
+        <LanguageSwitcher />
 
         <div className="demo-users">
           {DEMO_ACCOUNTS.map((account) => (
@@ -122,19 +130,19 @@ function LoginPage() {
                 setPassword('Demo12345!');
               }}
             >
-              {account.label}
+              {t(account.labelKey)}
             </button>
           ))}
         </div>
 
         <form onSubmit={submit} className="form-grid">
           <label>
-            Email
+            {t('auth.email')}
             <input value={email} onChange={(event) => setEmail(event.target.value)} type="email" required />
           </label>
 
           <label>
-            Password
+            {t('auth.password')}
             <input
               value={password}
               onChange={(event) => setPassword(event.target.value)}
@@ -146,7 +154,7 @@ function LoginPage() {
           {error ? <p className="error">{error}</p> : null}
 
           <button type="submit" disabled={loading}>
-            {loading ? 'Entrando...' : 'Entrar'}
+            {loading ? t('auth.submitLoading') : t('auth.submitIdle')}
           </button>
         </form>
       </div>

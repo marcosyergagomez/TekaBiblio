@@ -2,6 +2,7 @@ import { ConflictException, Injectable } from '@nestjs/common';
 import { MaterialsService } from '../materials/materials.service';
 import { CopyStatus } from '../materials/materials.types';
 import { getShipmentFee } from '../loans/loan-policies';
+import { paginateFromQuery } from '../common/pagination';
 import { CreateReservationDto } from './dto/create-reservation.dto';
 import { ListReservationsDto } from './dto/list-reservations.dto';
 import { ListShipmentsDto } from './dto/list-shipments.dto';
@@ -105,9 +106,6 @@ export class ReservationsService {
     page: number;
     pageSize: number;
   }> {
-    const page = query.page ?? 1;
-    const pageSize = query.pageSize ?? 20;
-
     let items = await this.reservationsRepository.findReservations();
 
     if (query.memberId) {
@@ -128,15 +126,7 @@ export class ReservationsService {
       );
     }
 
-    const total = items.length;
-    const start = (page - 1) * pageSize;
-
-    return {
-      items: items.slice(start, start + pageSize),
-      total,
-      page,
-      pageSize,
-    };
+    return paginateFromQuery(items, query, 20);
   }
 
   async listShipments(query: ListShipmentsDto): Promise<{
@@ -145,9 +135,6 @@ export class ReservationsService {
     page: number;
     pageSize: number;
   }> {
-    const page = query.page ?? 1;
-    const pageSize = query.pageSize ?? 20;
-
     let items = await this.reservationsRepository.findShipments();
 
     if (query.memberId) {
@@ -164,15 +151,7 @@ export class ReservationsService {
       );
     }
 
-    const total = items.length;
-    const start = (page - 1) * pageSize;
-
-    return {
-      items: items.slice(start, start + pageSize),
-      total,
-      page,
-      pageSize,
-    };
+    return paginateFromQuery(items, query, 20);
   }
 
   async markReadyForPickup(reservationId: string): Promise<ReservationRecord> {

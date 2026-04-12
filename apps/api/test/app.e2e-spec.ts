@@ -4,7 +4,7 @@ import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from './../src/app.module';
 
-describe('AppController (e2e)', () => {
+describe('API (e2e)', () => {
   let app: INestApplication<App>;
   const adminHeaders = {
     'x-user-id': 'u_admin_global',
@@ -20,11 +20,11 @@ describe('AppController (e2e)', () => {
     await app.init();
   });
 
-  it('/ (GET)', () => {
+  it('/health (GET)', () => {
     return request(app.getHttpServer())
-      .get('/')
+      .get('/health')
       .expect(200)
-      .expect('Hello World!');
+      .expect({ status: 'ok' });
   });
 
   it('supports materials filtering plus update/delete rules', async () => {

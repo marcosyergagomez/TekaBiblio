@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { RequestUser, UserRole } from '../auth/user-role.enum';
+import { paginateFromQuery } from '../common/pagination';
 import { ListAuditLogsDto } from './dto/list-audit-logs.dto';
 import { AuditRepository } from './audit.repository';
 
@@ -19,8 +20,6 @@ export class AuditService {
   }
 
   async listLogs(query: ListAuditLogsDto, user?: RequestUser) {
-    const page = query.page ?? 1;
-    const pageSize = query.pageSize ?? 50;
     let items = await this.auditRepository.list();
 
     if (query.actorUserId) {
@@ -47,14 +46,6 @@ export class AuditService {
       items = items.filter((item) => item.branchId === user.branchId);
     }
 
-    const total = items.length;
-    const start = (page - 1) * pageSize;
-
-    return {
-      items: items.slice(start, start + pageSize),
-      total,
-      page,
-      pageSize,
-    };
+    return paginateFromQuery(items, query, 50);
   }
 }

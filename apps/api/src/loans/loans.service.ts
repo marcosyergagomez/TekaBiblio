@@ -1,9 +1,4 @@
-import {
-  ConflictException,
-  Injectable,
-  NotFoundException,
-  UnprocessableEntityException,
-} from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { MaterialsService } from '../materials/materials.service';
 import { CopyStatus } from '../materials/materials.types';
 import { CalculateLateFeeDto } from './dto/calculate-late-fee.dto';
@@ -23,15 +18,14 @@ import {
   MaterialType,
   RENEWAL_LIMIT_BY_LEVEL,
   SHIPMENT_FEE_BY_LEVEL,
-  evaluateBlockReasons,
   getFinalPrice,
   getLateFee,
   getLoanDays,
   getShipmentFee,
-  roundMoney,
 } from './loan-policies';
+import { paginateFromQuery } from '../common/pagination';
+import { LoanDomainPolicyService } from './loan-domain-policy.service';
 
-const DAY_IN_MS = 24 * 60 * 60 * 1000;
 const SHIPMENT_TARGET_HOURS = 48;
 const SHIPMENT_DEADLINE_DAYS = 3;
 
@@ -76,6 +70,7 @@ export class LoansService {
     private readonly loansRepository: LoansRepository,
     private readonly materialsService: MaterialsService,
     private readonly reservationsRepository: ReservationsRepository,
+    private readonly loanDomainPolicyService: LoanDomainPolicyService,
   ) {}
 
   getPolicies(): LoanPoliciesSnapshot {
@@ -96,39 +91,21 @@ export class LoansService {
   }
 
   async createLoan(input: CreateLoanDto): Promise<LoanRecord> {
-    const blockReasons = evaluateBlockReasons({
-      debtTotal: input.debtTotal,
-      maxOverdueDays: input.maxOverdueDays,
-      overdueLoansLast60Days: input.overdueLoansLast60Days,
-    });
-
-    if (blockReasons.length > 0) {
-      throw new UnprocessableEntityException({
-        message: 'Member is blocked by business rules',
-        reasons: blockReasons,
-      });
-    }
-
-    const loanLimit = LOAN_LIMIT_BY_LEVEL[input.membershipLevel];
-    if (input.activeLoansCount >= loanLimit) {
-      throw new ConflictException(
-        `Loan limit reached for ${input.membershipLevel}. Active: ${input.activeLoansCount}, limit: ${loanLimit}`,
-      );
-    }
+    this.loanDomainPolicyService.assertCreateLoanAllowed(input);
 
     const copy = await this.materialsService.getCopyOrThrow(input.copyId);
     const material = await this.materialsService.getMaterialOrThrow(
       copy.materialId,
     );
 
-    if (copy.status !== CopyStatus.AVAILABLE) {
-      throw new ConflictException(
-        `Copy ${copy.id} is not available. Current status: ${copy.status}`,
-      );
-    }
+    this.loanDomainPolicyService.assertCopyAvailable(copy.id, copy.status);
 
     const crossBranchShipment =
-      input.forceCrossBranchShipment ?? copy.branchId !== input.pickupBranchId;
+      this.loanDomainPolicyService.resolveCrossBranchShipment(
+        input.forceCrossBranchShipment,
+        copy.branchId,
+        input.pickupBranchId,
+      );
 
     const startDate = input.startDate ? new Date(input.startDate) : new Date();
     const loanDays = getLoanDays(material.materialType, input.membershipLevel);
@@ -157,7 +134,9 @@ export class LoansService {
       crossBranchShipment,
       shipmentFee,
       basePrice,
-      levelAdjustment: this.getLevelAdjustment(input.membershipLevel),
+      levelAdjustment: this.loanDomainPolicyService.getLevelAdjustment(
+        input.membershipLevel,
+      ),
       finalPrice,
     });
 
@@ -189,9 +168,6 @@ export class LoansService {
     page: number;
     pageSize: number;
   }> {
-    const page = query.page ?? 1;
-    const pageSize = query.pageSize ?? 20;
-
     let items = await this.loansRepository.findAll();
 
     if (query.memberId) {
@@ -214,44 +190,18 @@ export class LoansService {
       );
     }
 
-    const total = items.length;
-    const start = (page - 1) * pageSize;
-
-    return {
-      items: items.slice(start, start + pageSize),
-      total,
-      page,
-      pageSize,
-    };
+    return paginateFromQuery(items, query, 20);
   }
 
   async renewLoan(input: RenewLoanDto): Promise<LoanRecord> {
     const loan = await this.getLoanOrThrow(input.loanId);
 
-    if (loan.status !== 'ACTIVE') {
-      throw new ConflictException(
-        `Only ACTIVE loans can be renewed. Current status: ${loan.status}`,
-      );
-    }
-
-    if (input.hasThirdPartyReservation) {
-      throw new ConflictException(
-        'Loan cannot be renewed because there is a third-party reservation',
-      );
-    }
-
-    if (input.hasOutstandingDebt) {
-      throw new ConflictException(
-        'Loan cannot be renewed because member has outstanding debt',
-      );
-    }
-
-    const maxRenewals = RENEWAL_LIMIT_BY_LEVEL[loan.membershipLevel];
-    if (loan.renewalCount >= maxRenewals) {
-      throw new ConflictException(
-        `Renewal limit reached for ${loan.membershipLevel}. Used: ${loan.renewalCount}, limit: ${maxRenewals}`,
-      );
-    }
+    this.loanDomainPolicyService.assertRenewalAllowed(input, {
+      loanId: loan.id,
+      status: loan.status,
+      membershipLevel: loan.membershipLevel,
+      renewalCount: loan.renewalCount,
+    });
 
     const currentDueDate = new Date(loan.dueDate);
     const extensionDays = getLoanDays(loan.materialType, loan.membershipLevel);
@@ -267,17 +217,15 @@ export class LoansService {
   async returnLoan(input: ReturnLoanDto): Promise<LoanRecord> {
     const loan = await this.getLoanOrThrow(input.loanId);
 
-    if (loan.status !== 'ACTIVE') {
-      throw new ConflictException(`Loan ${loan.id} is already returned`);
-    }
+    this.loanDomainPolicyService.assertReturnAllowed(loan.id, loan.status);
 
     const returnedAt = input.returnedAt
       ? new Date(input.returnedAt)
       : new Date();
     const dueDate = new Date(loan.dueDate);
-    const overdueDays = Math.max(
-      0,
-      Math.ceil((returnedAt.getTime() - dueDate.getTime()) / DAY_IN_MS),
+    const overdueDays = this.loanDomainPolicyService.computeOverdueDays(
+      dueDate,
+      returnedAt,
     );
     const lateFee = getLateFee(loan.materialType, overdueDays);
 
@@ -327,18 +275,5 @@ export class LoansService {
 
   private addHours(date: Date, hours: number): Date {
     return new Date(date.getTime() + hours * 60 * 60 * 1000);
-  }
-
-  private getLevelAdjustment(level: MembershipLevel): number {
-    switch (level) {
-      case MembershipLevel.BRONCE:
-        return 0;
-      case MembershipLevel.PLATA:
-        return -0.1;
-      case MembershipLevel.ORO:
-        return -0.2;
-      default:
-        return roundMoney(0);
-    }
   }
 }

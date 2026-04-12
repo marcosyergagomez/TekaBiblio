@@ -2,6 +2,7 @@ import { AuditRepository } from '../audit/audit.repository';
 import { AuditService } from '../audit/audit.service';
 import { LoansRepository } from '../loans/loans.repository';
 import { LoansService } from '../loans/loans.service';
+import { LoanDomainPolicyService } from '../loans/loan-domain-policy.service';
 import { MaterialType, MembershipLevel } from '../loans/loan-policies';
 import { MaterialsRepository } from '../materials/materials.repository';
 import { MaterialsService } from '../materials/materials.service';
@@ -21,6 +22,7 @@ describe('PenaltiesService', () => {
       new LoansRepository(),
       materialsService,
       new ReservationsRepository(),
+      new LoanDomainPolicyService(),
     );
     const auditService = new AuditService(new AuditRepository());
     penaltiesService = new PenaltiesService(

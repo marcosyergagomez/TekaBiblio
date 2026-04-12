@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { api } from '../lib/api';
+import { branchLabel, reservationStatusLabel } from '../lib/labels';
 
 type Reservation = {
   id: string;
@@ -11,6 +13,7 @@ type Reservation = {
 };
 
 export function MyReservationsPage() {
+  const { t } = useTranslation();
   const [items, setItems] = useState<Reservation[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -28,18 +31,18 @@ export function MyReservationsPage() {
 
   return (
     <section className="card">
-      <h2>Mis reservas</h2>
-      {loading ? <p>Cargando...</p> : null}
+      <h2>{t('reservations.title')}</h2>
+      {loading ? <p>{t('common.loading')}</p> : null}
       <div className="table-wrap">
         <table>
           <thead>
             <tr>
-              <th>ID</th>
-              <th>Material</th>
-              <th>Sede recogida</th>
-              <th>Estado</th>
-              <th>Cola</th>
-              <th>Expira</th>
+              <th>{t('reservations.table.id')}</th>
+              <th>{t('reservations.table.materialId')}</th>
+              <th>{t('reservations.table.pickupBranch')}</th>
+              <th>{t('reservations.table.status')}</th>
+              <th>{t('reservations.table.queue')}</th>
+              <th>{t('reservations.table.expiresAt')}</th>
             </tr>
           </thead>
           <tbody>
@@ -47,13 +50,13 @@ export function MyReservationsPage() {
               <tr key={reservation.id}>
                 <td>{reservation.id}</td>
                 <td>{reservation.materialId}</td>
-                <td>{reservation.pickupBranchId}</td>
-                <td>{reservation.status}</td>
+                <td>{branchLabel(t, reservation.pickupBranchId)}</td>
+                <td>{reservationStatusLabel(t, reservation.status)}</td>
                 <td>{reservation.queuePosition}</td>
                 <td>
                   {reservation.expiresAt
                     ? new Date(reservation.expiresAt).toLocaleString()
-                    : '-'}
+                    : t('common.notAvailable')}
                 </td>
               </tr>
             ))}

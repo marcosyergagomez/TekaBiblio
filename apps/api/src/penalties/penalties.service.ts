@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { RequestUser, UserRole } from '../auth/user-role.enum';
+import { paginateFromQuery } from '../common/pagination';
 import { LoansService } from '../loans/loans.service';
 import { CreateLoanPenaltyDto } from './dto/create-loan-penalty.dto';
 import { CreatePenaltyDto } from './dto/create-penalty.dto';
@@ -92,8 +93,6 @@ export class PenaltiesService {
   }
 
   async listPenalties(query: ListPenaltiesDto, user?: RequestUser) {
-    const page = query.page ?? 1;
-    const pageSize = query.pageSize ?? 20;
     let items = await this.penaltiesRepository.list();
 
     if (query.memberId) {
@@ -116,15 +115,7 @@ export class PenaltiesService {
       items = items.filter((item) => item.memberId === user.memberId);
     }
 
-    const total = items.length;
-    const start = (page - 1) * pageSize;
-
-    return {
-      items: items.slice(start, start + pageSize),
-      total,
-      page,
-      pageSize,
-    };
+    return paginateFromQuery(items, query, 20);
   }
 
   async waivePenalty(

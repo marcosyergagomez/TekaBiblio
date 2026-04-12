@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { api } from '../lib/api';
+import { branchLabel, roleLabel } from '../lib/labels';
 
 type Profile = {
   user: {
@@ -11,6 +13,7 @@ type Profile = {
 };
 
 export function ProfilePage() {
+  const { t } = useTranslation();
   const [data, setData] = useState<Profile | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -18,7 +21,7 @@ export function ProfilePage() {
     api
       .get<Profile>('/auth/me')
       .then((response) => setData(response.data))
-      .catch(() => setError('No se pudo cargar el perfil actual.'));
+      .catch(() => setError(t('profile.loadError')));
   }, []);
 
   if (error) {
@@ -26,28 +29,28 @@ export function ProfilePage() {
   }
 
   if (!data) {
-    return <p>Cargando perfil...</p>;
+    return <p>{t('common.loading')}</p>;
   }
 
   return (
     <section className="card">
-      <h2>Perfil actual</h2>
+      <h2>{t('profile.title')}</h2>
       <div className="grid two">
         <div>
-          <strong>User ID</strong>
+          <strong>{t('profile.labels.userId')}</strong>
           <p>{data.user.userId}</p>
         </div>
         <div>
-          <strong>Rol</strong>
-          <p>{data.user.role}</p>
+          <strong>{t('profile.labels.role')}</strong>
+          <p>{roleLabel(t, data.user.role)}</p>
         </div>
         <div>
-          <strong>Sede</strong>
-          <p>{data.user.branchId ?? '-'}</p>
+          <strong>{t('profile.labels.branch')}</strong>
+          <p>{branchLabel(t, data.user.branchId)}</p>
         </div>
         <div>
-          <strong>Member ID</strong>
-          <p>{data.user.memberId ?? '-'}</p>
+          <strong>{t('profile.labels.memberId')}</strong>
+          <p>{data.user.memberId ?? t('common.notAvailable')}</p>
         </div>
       </div>
     </section>

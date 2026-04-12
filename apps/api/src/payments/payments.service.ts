@@ -1,6 +1,7 @@
 import { ConflictException, Injectable } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { RequestUser, UserRole } from '../auth/user-role.enum';
+import { paginateFromQuery } from '../common/pagination';
 import { PenaltiesService } from '../penalties/penalties.service';
 import { ListPaymentsDto } from './dto/list-payments.dto';
 import { RegisterPaymentDto } from './dto/register-payment.dto';
@@ -59,8 +60,6 @@ export class PaymentsService {
   }
 
   async listPayments(query: ListPaymentsDto, user?: RequestUser) {
-    const page = query.page ?? 1;
-    const pageSize = query.pageSize ?? 20;
     let items = await this.paymentsRepository.list();
 
     if (query.memberId) {
@@ -87,14 +86,6 @@ export class PaymentsService {
       items = items.filter((item) => item.memberId === user.memberId);
     }
 
-    const total = items.length;
-    const start = (page - 1) * pageSize;
-
-    return {
-      items: items.slice(start, start + pageSize),
-      total,
-      page,
-      pageSize,
-    };
+    return paginateFromQuery(items, query, 20);
   }
 }

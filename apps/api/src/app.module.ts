@@ -2,8 +2,6 @@ import { Module } from '@nestjs/common';
 import { AuditModule } from './audit/audit.module';
 import { AuthModule } from './auth/auth.module';
 import { DatabaseModule } from './database/database.module';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
 import { HealthController } from './health/health.controller';
 import { LoansModule } from './loans/loans.module';
 import { MaterialsModule } from './materials/materials.module';
@@ -23,7 +21,6 @@ import { ReservationsModule } from './reservations/reservations.module';
     PenaltiesModule,
     PaymentsModule,
   ],
-  controllers: [AppController, HealthController],
-  providers: [AppService],
+  controllers: [HealthController],
 })
 export class AppModule {}
