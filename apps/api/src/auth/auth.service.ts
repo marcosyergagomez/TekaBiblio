@@ -1,5 +1,10 @@
 import { Injectable, Optional, UnauthorizedException } from '@nestjs/common';
-import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import {
+  createHash,
+  randomBytes,
+  randomUUID,
+  timingSafeEqual,
+} from 'node:crypto';
 import { RowDataPacket } from 'mysql2/promise';
 import { SignOptions, sign, verify } from 'jsonwebtoken';
 import { SqlStoreService } from '../database/sql-store.service';
@@ -7,6 +12,7 @@ import { RequestUser, UserRole } from './user-role.enum';
 
 type LoginRow = RowDataPacket & {
   userId: string;
+  passwordHash: string;
   role: string;
   branchId: string | null;
   memberId: string | null;
@@ -45,9 +51,15 @@ type StoredSession = {
   revokedAt?: string;
 };
 
+type UserAccount = {
+  user: RequestUser;
+  passwordHash: string;
+};
+
 const IN_MEMORY_USERS: Array<{
   email: string;
   userId: string;
+  passwordHash: string;
   role: UserRole;
   branchId?: string;
   memberId?: string;
@@ -55,24 +67,28 @@ const IN_MEMORY_USERS: Array<{
   {
     email: 'admin.global@tekabiblio.local',
     userId: 'u_admin_global',
+    passwordHash: 'demo_hash',
     role: UserRole.ADMIN_GLOBAL,
     branchId: 'branch_centro',
   },
   {
     email: 'admin.norte@tekabiblio.local',
     userId: 'u_admin_norte',
+    passwordHash: 'demo_hash',
     role: UserRole.ADMIN_SEDE,
     branchId: 'branch_norte',
   },
   {
     email: 'biblio.norte@tekabiblio.local',
     userId: 'u_biblio_norte',
+    passwordHash: 'demo_hash',
     role: UserRole.BIBLIOTECARIO,
     branchId: 'branch_norte',
   },
   {
     email: 'socio.bronce@tekabiblio.local',
     userId: 'u_member_bronce',
+    passwordHash: 'demo_hash',
     role: UserRole.SOCIO,
     branchId: 'branch_sur',
     memberId: 'mbr_bronce_01',
@@ -80,6 +96,7 @@ const IN_MEMORY_USERS: Array<{
   {
     email: 'socio.plata@tekabiblio.local',
     userId: 'u_member_plata',
+    passwordHash: 'demo_hash',
     role: UserRole.SOCIO,
     branchId: 'branch_este',
     memberId: 'mbr_plata_01',
@@ -87,6 +104,7 @@ const IN_MEMORY_USERS: Array<{
   {
     email: 'socio.oro@tekabiblio.local',
     userId: 'u_member_oro',
+    passwordHash: 'demo_hash',
     role: UserRole.SOCIO,
     branchId: 'branch_oeste',
     memberId: 'mbr_oro_01',
@@ -104,17 +122,15 @@ export class AuthService {
     email: string,
     password: string,
   ): Promise<{ accessToken: string; refreshToken: string; user: RequestUser }> {
-    if (password !== 'Demo12345!') {
+    const account = this.isSqlEnabled()
+      ? await this.resolveUserAccountFromSql(email)
+      : this.resolveUserAccountFromMemory(email);
+
+    if (!account || !this.verifyPassword(password, account.passwordHash)) {
       throw new UnauthorizedException('Invalid credentials');
     }
 
-    const user = this.isSqlEnabled()
-      ? await this.resolveUserFromSql(email)
-      : this.resolveUserFromMemory(email);
-
-    if (!user) {
-      throw new UnauthorizedException('Invalid credentials');
-    }
+    const user = account.user;
 
     await this.pruneExpiredSessions();
     const refreshToken = await this.createRefreshSession(user);
@@ -446,10 +462,13 @@ export class AuthService {
     }
   }
 
-  private async resolveUserFromSql(email: string): Promise<RequestUser | null> {
+  private async resolveUserAccountFromSql(
+    email: string,
+  ): Promise<UserAccount | null> {
     const rows = await this.sqlStore!.query<LoginRow>(
       `SELECT
          u.id AS userId,
+         u.password_hash AS passwordHash,
          u.role AS role,
          u.branch_id AS branchId,
          m.id AS memberId,
@@ -467,14 +486,17 @@ export class AuthService {
     }
 
     return {
-      userId: row.userId,
-      role: row.role,
-      branchId: row.branchId ?? undefined,
-      memberId: row.memberId ?? undefined,
+      user: {
+        userId: row.userId,
+        role: row.role,
+        branchId: row.branchId ?? undefined,
+        memberId: row.memberId ?? undefined,
+      },
+      passwordHash: row.passwordHash,
     };
   }
 
-  private resolveUserFromMemory(email: string): RequestUser | null {
+  private resolveUserAccountFromMemory(email: string): UserAccount | null {
     const user = IN_MEMORY_USERS.find((item) => item.email === email);
 
     if (!user) {
@@ -482,11 +504,68 @@ export class AuthService {
     }
 
     return {
-      userId: user.userId,
-      role: user.role,
-      branchId: user.branchId,
-      memberId: user.memberId,
+      user: {
+        userId: user.userId,
+        role: user.role,
+        branchId: user.branchId,
+        memberId: user.memberId,
+      },
+      passwordHash: user.passwordHash,
     };
+  }
+
+  private verifyPassword(password: string, storedHash: string): boolean {
+    if (storedHash === 'demo_hash') {
+      if (!this.isDemoAuthEnabled()) {
+        return false;
+      }
+
+      const expectedDemoPassword = this.getDemoAuthPassword();
+      if (!expectedDemoPassword) {
+        return false;
+      }
+
+      return this.safeCompare(password, expectedDemoPassword);
+    }
+
+    if (storedHash.startsWith('sha256:')) {
+      const expectedHash = storedHash.slice('sha256:'.length);
+      const providedHash = createHash('sha256').update(password).digest('hex');
+      return this.safeCompare(providedHash, expectedHash);
+    }
+
+    return false;
+  }
+
+  private isDemoAuthEnabled(): boolean {
+    if (process.env.NODE_ENV === 'test') {
+      return true;
+    }
+
+    return process.env.ALLOW_DEMO_PASSWORD_AUTH === '1';
+  }
+
+  private getDemoAuthPassword(): string | undefined {
+    if (process.env.DEMO_AUTH_PASSWORD) {
+      return process.env.DEMO_AUTH_PASSWORD;
+    }
+
+    if (process.env.NODE_ENV === 'test') {
+      return 'Demo12345!';
+    }
+
+    return undefined;
+  }
+
+  private safeCompare(left: string, right: string): boolean {
+    const leftBuffer = Buffer.from(left);
+    const rightBuffer = Buffer.from(right);
+
+    if (leftBuffer.length !== rightBuffer.length) {
+      return false;
+    }
+
+    return timingSafeEqual(leftBuffer, rightBuffer);
   }
 
   private isSqlEnabled(): boolean {
@@ -506,6 +585,25 @@ export class AuthService {
   }
 
   private jwtSecret(): string {
-    return process.env.JWT_SECRET ?? 'dev-secret-change-me';
+    const secret = process.env.JWT_SECRET;
+    const allowInsecureDevSecret =
+      process.env.NODE_ENV !== 'production' &&
+      process.env.ALLOW_INSECURE_JWT_FOR_DEV === '1';
+
+    if (
+      secret &&
+      (allowInsecureDevSecret ||
+        (secret !== 'dev-secret-change-me' && secret.length >= 32))
+    ) {
+      return secret;
+    }
+
+    if (process.env.NODE_ENV === 'test') {
+      return 'test-only-insecure-jwt-secret';
+    }
+
+    throw new Error(
+      'JWT_SECRET must be set with at least 32 characters and cannot use insecure defaults',
+    );
   }
 }

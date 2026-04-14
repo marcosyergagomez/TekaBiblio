@@ -11,25 +11,16 @@ export type SessionState = {
   user: SessionUser;
 };
 
-const STORAGE_KEY = 'tekabiblio.session';
+let inMemorySession: SessionState | null = null;
 
 export function getSession(): SessionState | null {
-  const raw = window.localStorage.getItem(STORAGE_KEY);
-  if (!raw) {
-    return null;
-  }
-
-  try {
-    return JSON.parse(raw) as SessionState;
-  } catch {
-    return null;
-  }
+  return inMemorySession;
 }
 
 export function setSession(state: SessionState): void {
-  window.localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  inMemorySession = state;
 }
 
 export function clearSession(): void {
-  window.localStorage.removeItem(STORAGE_KEY);
+  inMemorySession = null;
 }

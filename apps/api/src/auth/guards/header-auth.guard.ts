@@ -37,6 +37,12 @@ export class HeaderAuthGuard implements CanActivate {
       return true;
     }
 
+    if (!this.isInsecureHeaderAuthEnabled()) {
+      throw new UnauthorizedException(
+        'Missing or invalid Authorization bearer token',
+      );
+    }
+
     const roleHeader = request.headers['x-user-role'];
     const userIdHeader = request.headers['x-user-id'];
     const branchIdHeader = request.headers['x-branch-id'];
@@ -92,5 +98,12 @@ export class HeaderAuthGuard implements CanActivate {
 
   private isValidRole(value: string): value is UserRole {
     return Object.values(UserRole).includes(value as UserRole);
+  }
+
+  private isInsecureHeaderAuthEnabled(): boolean {
+    return (
+      process.env.NODE_ENV === 'test' ||
+      process.env.ALLOW_INSECURE_HEADER_AUTH === '1'
+    );
   }
 }
