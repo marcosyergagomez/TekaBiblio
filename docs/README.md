@@ -9,6 +9,8 @@ Fecha de ultima revision global: 2026-04-14.
 | Documento | Proposito | Estado | Canonico | Responsable | Ultima revision |
 | --- | --- | --- | --- | --- | --- |
 | `apps/web/README.md` | Guia operativa y tecnica del frontend | Activo | Si | Equipo TekaBiblio | 2026-04-14 |
+| `docs/OPERACION_DATOS.md` | Politica formal de migraciones, backup y restore | Activo | Si | Equipo TekaBiblio | 2026-04-14 |
+| `docs/OBSERVABILIDAD_SEGURIDAD_CONTINUA.md` | Baseline de logs, metricas, alertas y seguridad continua | Activo | Si | Equipo TekaBiblio | 2026-04-14 |
 | `docs/BIBLIA_PROYECTO_v2.md` | Vision funcional y alcance de producto | Activo | Si | Equipo TekaBiblio | 2026-04-14 |
 | `docs/BIBLIA_PROYECTO_v1.md` | Version historica del alcance | Deprecado | No | Equipo TekaBiblio | 2026-04-14 |
 | `docs/BACKLOG_TECNICO_SPRINTS.md` | Plan tecnico por sprints | Activo | Si | Equipo TekaBiblio | 2026-04-14 |

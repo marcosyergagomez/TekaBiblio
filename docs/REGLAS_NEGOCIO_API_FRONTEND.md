@@ -28,6 +28,7 @@ Estado: Directo para implementacion
 | RB-020 | Reportes por rol | Global solo admin_global, sede para staff local | Selector de alcance segun rol | FORBIDDEN_REPORT_SCOPE |
 
 ## Contrato de configuracion sugerido
+
 ```json
 {
   "loanPolicies": {

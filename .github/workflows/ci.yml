@@ -16,7 +16,7 @@ concurrency:
 jobs:
   validate:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 35
 
     steps:
       - name: Checkout
@@ -39,6 +39,9 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      - name: Markdown lint
+        run: pnpm lint:md
+
       - name: Typecheck
         run: pnpm typecheck
 
@@ -54,5 +57,16 @@ jobs:
 
       - name: E2E tests API
         run: pnpm -C apps/api test:e2e
+        env:
+          CI: true
+
+      - name: Build
+        run: pnpm build
+
+      - name: Install Playwright Chromium
+        run: pnpm -C apps/web exec playwright install --with-deps chromium
+
+      - name: E2E tests Web
+        run: pnpm -C apps/web test:e2e
         env:
           CI: true

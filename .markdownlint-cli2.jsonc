@@ -1,0 +1,20 @@
+{
+  "config": {
+    "default": true,
+    "MD013": false,
+    "MD033": false,
+    "MD041": false,
+    "MD022": false,
+    "MD024": false,
+    "MD029": false,
+    "MD032": false,
+    "MD034": false,
+    "MD040": false,
+    "MD058": false,
+    "MD060": false
+  },
+  "ignores": [
+    "**/node_modules/**",
+    "**/dist/**"
+  ]
+}

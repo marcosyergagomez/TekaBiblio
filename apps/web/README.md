@@ -20,7 +20,7 @@ Fecha de revision: 2026-04-14.
 - React Router 7
 - Axios
 - i18next + react-i18next con recursos JSON
-- ESLint + Vitest
+- ESLint + Vitest + Playwright
 
 ## Estructura relevante
 
@@ -98,6 +98,7 @@ pnpm lint:fix
 pnpm typecheck
 pnpm test
 pnpm test:cov
+pnpm test:e2e
 ```
 
 ## Autenticacion en cliente
@@ -121,6 +122,7 @@ Implicacion operativa:
 - Build de produccion servido por nginx con cabeceras de seguridad en `nginx.conf`.
 - CSP definida en nginx para restringir scripts, frames y origenes de conexion.
 - El frontend no habilita almacenamiento persistente de tokens.
+- Verificacion automatizada de baseline CSP en `scripts/security/check-csp.mjs`.
 
 ## Integracion con backend
 
@@ -151,5 +153,6 @@ Ejecutar desde la raiz del repo:
 corepack pnpm -C apps/web lint
 corepack pnpm -C apps/web typecheck
 corepack pnpm -C apps/web test
+corepack pnpm -C apps/web test:e2e
 corepack pnpm -C apps/web build
 ```

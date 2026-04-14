@@ -5,9 +5,11 @@ import { ValidationPipe } from '@nestjs/common';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import type { Express } from 'express';
+import { JsonLoggerService } from './common/logging/json-logger.service';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+  app.useLogger(app.get(JsonLoggerService));
   const expressApp = app.getHttpAdapter().getInstance() as Express;
 
   expressApp.disable('x-powered-by');
@@ -50,7 +52,8 @@ async function bootstrap() {
       'http://127.0.0.1:4173',
     ],
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
-    allowedHeaders: 'Content-Type,Authorization',
+    allowedHeaders: 'Content-Type,Authorization,x-request-id',
+    exposedHeaders: 'x-request-id',
   });
   app.useGlobalPipes(
     new ValidationPipe({

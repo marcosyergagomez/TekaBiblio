@@ -1,0 +1,63 @@
+name: Data Resilience Drill
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 5 * * 2'
+
+jobs:
+  backup-restore-drill:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: tekabiblio
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -uroot -proot"
+          --health-interval=5s
+          --health-timeout=5s
+          --health-retries=30
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install MySQL client
+        run: sudo apt-get update && sudo apt-get install -y mysql-client
+
+      - name: Wait for MySQL
+        run: |
+          for i in {1..30}; do
+            mysqladmin ping -h 127.0.0.1 -uroot -proot && exit 0
+            sleep 2
+          done
+          echo "MySQL did not become ready in time"
+          exit 1
+
+      - name: Apply schema, seed, and migrations
+        run: |
+          mysql -h 127.0.0.1 -uroot -proot tekabiblio < apps/api/database/schema-v1.sql
+          mysql -h 127.0.0.1 -uroot -proot tekabiblio < apps/api/database/seed-v1.sql
+          mysql -h 127.0.0.1 -uroot -proot tekabiblio < apps/api/database/migrations/2026-04-11-auth-sessions.sql
+
+      - name: Create backup dump
+        run: mysqldump -h 127.0.0.1 -uroot -proot --single-transaction tekabiblio > /tmp/tekabiblio-backup.sql
+
+      - name: Restore backup into clean database
+        run: |
+          mysql -h 127.0.0.1 -uroot -proot -e "DROP DATABASE IF EXISTS tekabiblio_restore; CREATE DATABASE tekabiblio_restore;"
+          mysql -h 127.0.0.1 -uroot -proot tekabiblio_restore < /tmp/tekabiblio-backup.sql
+
+      - name: Validate restored dataset
+        run: |
+          USERS_COUNT=$(mysql -N -h 127.0.0.1 -uroot -proot -e "SELECT COUNT(*) FROM users;" tekabiblio_restore)
+          MATERIALS_COUNT=$(mysql -N -h 127.0.0.1 -uroot -proot -e "SELECT COUNT(*) FROM materials;" tekabiblio_restore)
+          if [ "$USERS_COUNT" -le 0 ]; then echo "Restore failed: users table is empty" && exit 1; fi
+          if [ "$MATERIALS_COUNT" -le 0 ]; then echo "Restore failed: materials table is empty" && exit 1; fi
+          echo "Restore validation successful (users=$USERS_COUNT, materials=$MATERIALS_COUNT)"

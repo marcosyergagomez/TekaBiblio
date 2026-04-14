@@ -109,6 +109,7 @@ Cabeceras aceptadas en ese modo:
 - `GET /payments`, `POST /payments`
 - `GET /audit-logs`
 - `GET /reports/income`, `GET /reports/losses`, `GET /reports/popularity`, `GET /reports/dashboard`
+- `GET /metrics`
 
 Para contratos detallados, usar Swagger cuando este habilitado.
 
@@ -120,6 +121,13 @@ Para contratos detallados, usar Swagger cuando este habilitado.
 - CORS restringido a origenes locales definidos
 - DTO validation global con `whitelist`, `transform` y `forbidNonWhitelisted`
 - JWT obligatorio para rutas privadas (salvo modo inseguro explicitamente habilitado)
+
+## Observabilidad
+
+- Logs estructurados JSON en runtime.
+- `x-request-id` para trazabilidad por request.
+- Metricas Prometheus expuestas en `GET /metrics`.
+- Contadores de fallos de autenticacion y latencia de peticiones para alertas minimas.
 
 ## Capa de datos
 
@@ -137,6 +145,7 @@ pnpm run lint
 pnpm run typecheck
 pnpm run test
 pnpm run test:e2e
+pnpm run test:contract
 ```
 
 ## Calidad
@@ -148,6 +157,7 @@ pnpm run lint
 pnpm run typecheck
 pnpm run test
 pnpm run test:e2e
+pnpm run test:contract
 pnpm run build
 ```
 

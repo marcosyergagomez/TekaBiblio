@@ -36,10 +36,17 @@ jobs:
       - name: Validate quality gate
         run: |
           pnpm lint
+          pnpm lint:md
           pnpm typecheck
           pnpm -C apps/api test -- --runInBand
           pnpm -C apps/web test
           pnpm -C apps/api test:e2e
+
+      - name: Install Playwright Chromium
+        run: pnpm -C apps/web exec playwright install --with-deps chromium
+
+      - name: Frontend E2E tests
+        run: pnpm -C apps/web test:e2e
 
       - name: Build applications
         run: pnpm build

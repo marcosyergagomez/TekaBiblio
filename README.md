@@ -5,7 +5,7 @@ Monorepo de gestion bibliotecaria (MVP) con API en NestJS y frontend en React.
 Estado actual:
 - API y web funcionales para demo y desarrollo.
 - Seguridad base aplicada (JWT bearer, validacion DTO, Helmet, rate limit en auth).
-- Pipeline de calidad (lint, typecheck, tests, build).
+- Pipeline de calidad y seguridad continua (quality gate en CI, SAST, dependency review, audit de dependencias, check CSP).
 
 ## Arquitectura
 
@@ -103,6 +103,24 @@ Archivo API (`apps/api/.env`):
 - `JWT_SECRET` debe tener al menos 32 caracteres y no permite defaults inseguros en runtime normal.
 - Swagger se puede desactivar en produccion con `ENABLE_SWAGGER=0`.
 
+## Verificacion de ciberseguridad
+
+Controles automatizados implementados:
+- Workflow de seguridad en `.github/workflows/security.yml` con dependency review, CodeQL, audit de dependencias y check CSP.
+- Workflow de CI en `.github/workflows/ci.yml` con quality gate completo.
+- Contratos de auth/permisos en `apps/api/test/auth-permissions.contract.e2e-spec.ts`.
+
+Comandos de verificacion local recomendados:
+
+```bash
+pnpm security:audit
+pnpm security:csp:check
+pnpm -C apps/api test:contract
+pnpm quality:gate
+```
+
+Para enforcement estricto en merge, configurar Branch Protection en GitHub y marcar los checks de CI/Security como obligatorios.
+
 ## Scripts principales
 
 Root:
@@ -113,9 +131,12 @@ pnpm dev:api
 pnpm dev:web
 pnpm build
 pnpm lint
+pnpm lint:md
 pnpm typecheck
 pnpm test
 pnpm test:e2e
+pnpm test:e2e:web
+pnpm quality:gate
 pnpm ci
 ```
 
@@ -134,6 +155,7 @@ Web:
 pnpm -C apps/web dev
 pnpm -C apps/web build
 pnpm -C apps/web test
+pnpm -C apps/web test:e2e
 ```
 
 ## Calidad y validacion
@@ -142,8 +164,11 @@ Comando recomendado antes de merge:
 
 ```bash
 pnpm lint
+pnpm lint:md
 pnpm typecheck
 pnpm test
+pnpm test:e2e
+pnpm test:e2e:web
 pnpm build
 ```
 
@@ -157,6 +182,8 @@ Documentos de referencia frecuentes:
 - `docs/REGLAS_NEGOCIO_API_FRONTEND.md`
 - `docs/MATRIZ_PERMISOS_MVP.md`
 - `docs/DEPLOY_RELEASE.md`
+- `docs/OPERACION_DATOS.md`
+- `docs/OBSERVABILIDAD_SEGURIDAD_CONTINUA.md`
 
 ## Contribucion
 
