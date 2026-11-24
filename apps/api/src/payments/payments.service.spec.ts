@@ -1,3 +1,4 @@
+import { ConflictException } from '@nestjs/common';
 import { AuditRepository } from '../audit/audit.repository';
 import { AuditService } from '../audit/audit.service';
 import { LoansRepository } from '../loans/loans.repository';
@@ -36,6 +37,7 @@ describe('PaymentsService', () => {
       new PaymentsRepository(),
       penaltiesService,
       auditService,
+      loansService,
     );
   });
 
@@ -65,17 +67,59 @@ describe('PaymentsService', () => {
     expect(updatedPenalty?.status).toBe(PenaltyStatus.PAID);
   });
 
+  it('does not mark a penalty paid when member or amount does not match', async () => {
+    const penalty = await penaltiesService.createPenalty({
+      memberId: 'member_payment',
+      penaltyType: PenaltyType.DAMAGE,
+      amount: 8,
+      reason: 'Broken disk',
+    });
+
+    await expect(
+      paymentsService.registerPayment({
+        memberId: 'member_other',
+        penaltyId: penalty.id,
+        amount: 8,
+      }),
+    ).rejects.toThrow(ConflictException);
+
+    await expect(
+      paymentsService.registerPayment({
+        memberId: 'member_payment',
+        penaltyId: penalty.id,
+        amount: 1,
+      }),
+    ).rejects.toThrow(ConflictException);
+
+    const penalties = await penaltiesService.listPenalties({
+      memberId: 'member_payment',
+    });
+    expect(penalties.items[0]?.status).toBe(PenaltyStatus.PENDING);
+  });
+
   it('scopes payments to socio member in list', async () => {
+    const penaltyA = await penaltiesService.createPenalty({
+      memberId: 'member_a',
+      penaltyType: PenaltyType.DAMAGE,
+      amount: 3,
+      reason: 'A',
+    });
+    const penaltyB = await penaltiesService.createPenalty({
+      memberId: 'member_b',
+      penaltyType: PenaltyType.DAMAGE,
+      amount: 4,
+      reason: 'B',
+    });
     await paymentsService.registerPayment({
       memberId: 'member_a',
-      loanId: 'loan_a',
+      penaltyId: penaltyA.id,
       amount: 3,
       method: PaymentMethod.SIMULATED,
     });
 
     await paymentsService.registerPayment({
       memberId: 'member_b',
-      loanId: 'loan_b',
+      penaltyId: penaltyB.id,
       amount: 4,
       method: PaymentMethod.SIMULATED,
     });

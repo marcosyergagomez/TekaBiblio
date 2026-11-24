@@ -132,8 +132,7 @@ Para contratos detallados, usar Swagger cuando este habilitado.
 ## Capa de datos
 
 - Almacen principal: MySQL via `mysql2`.
-- Si `NODE_ENV=test` o `DB_DISABLE=1`, el store SQL se desactiva.
-- Algunos flujos (por ejemplo sesiones) pueden operar con fallback en memoria para test/local resiliente.
+- `DB_DISABLE=1` apaga MySQL. Produccion lo rechaza. Los tests unitarios no inyectan el store y usan el doble en memoria. Los e2e arrancan contra MySQL (`tekabiblio_test` por defecto).
 
 ## Scripts utiles
 

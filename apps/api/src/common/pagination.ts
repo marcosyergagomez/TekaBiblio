@@ -10,6 +10,8 @@ export type PaginatedResult<T> = {
   pageSize: number;
 };
 
+const MAX_PAGE_SIZE = 100;
+
 export function resolvePagination(
   query: PaginationQuery,
   defaultPageSize: number,
@@ -18,10 +20,11 @@ export function resolvePagination(
     typeof query.page === 'number' && query.page > 0
       ? Math.floor(query.page)
       : 1;
-  const pageSize =
+  const requested =
     typeof query.pageSize === 'number' && query.pageSize > 0
       ? Math.floor(query.pageSize)
       : defaultPageSize;
+  const pageSize = Math.min(MAX_PAGE_SIZE, Math.max(1, requested));
 
   return { page, pageSize };
 }

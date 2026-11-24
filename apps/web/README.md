@@ -35,12 +35,12 @@ apps/web/
 │  ├─ locales/
 │  │  ├─ es.json
 │  │  └─ en.json
-│  ├─ pages/
-│  │  ├─ CatalogPage.tsx
-│  │  ├─ ProfilePage.tsx
-│  │  ├─ MyLoansPage.tsx
-│  │  ├─ MyReservationsPage.tsx
-│  │  └─ StaffOpsPage.tsx
+│  ├─ features/
+│  │  ├─ catalog/CatalogPage.tsx
+│  │  ├─ profile/ProfilePage.tsx
+│  │  ├─ loans/MyLoansPage.tsx
+│  │  ├─ reservations/MyReservationsPage.tsx
+│  │  └─ staff/StaffOpsPage.tsx
 │  ├─ App.tsx
 │  ├─ i18n.ts
 │  └─ main.tsx
@@ -103,13 +103,13 @@ pnpm test:e2e
 
 ## Autenticacion en cliente
 
-- La sesion se mantiene en memoria del proceso del navegador (no localStorage para tokens).
+- La sesion vive en sessionStorage: sobrevive a recargar la pestana y muere al cerrarla. Un script de este origen puede leerla, asi que no equivale a una cookie httpOnly. localStorage se descarto porque el token sobreviviria al cierre del navegador.
 - Axios inyecta `Authorization: Bearer <accessToken>` en cada request autenticada.
 - En respuestas 401, se intenta refresh una sola vez y se reintenta la peticion original.
 - Si el refresh falla, se limpia sesion local y el usuario debe autenticarse de nuevo.
 
 Implicacion operativa:
-- Al recargar la pestana, la sesion en memoria se pierde y se requiere nuevo login.
+- Al cerrar la pestana, la sesion desaparece y hace falta entrar de nuevo.
 
 ## Internacionalizacion
 

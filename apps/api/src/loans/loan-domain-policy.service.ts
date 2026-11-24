@@ -4,8 +4,6 @@ import {
   UnprocessableEntityException,
 } from '@nestjs/common';
 import { CopyStatus } from '../materials/materials.types';
-import { CreateLoanDto } from './dto/create-loan.dto';
-import { RenewLoanDto } from './dto/renew-loan.dto';
 import {
   LOAN_LIMIT_BY_LEVEL,
   MembershipLevel,
@@ -13,6 +11,22 @@ import {
   evaluateBlockReasons,
   roundMoney,
 } from './loan-policies';
+
+type CreateLoanRiskInput = {
+  membershipLevel: MembershipLevel;
+  activeLoansCount: number;
+  debtTotal: number;
+  maxOverdueDays: number;
+  overdueLoansLast60Days: number;
+  memberId?: string;
+  copyId?: string;
+  pickupBranchId?: string;
+};
+
+type RenewalBlockers = {
+  hasThirdPartyReservation: boolean;
+  hasOutstandingDebt: boolean;
+};
 
 type RenewalContext = {
   loanId: string;
@@ -23,7 +37,7 @@ type RenewalContext = {
 
 @Injectable()
 export class LoanDomainPolicyService {
-  assertCreateLoanAllowed(input: CreateLoanDto): void {
+  assertCreateLoanAllowed(input: CreateLoanRiskInput): void {
     const blockReasons = evaluateBlockReasons({
       debtTotal: input.debtTotal,
       maxOverdueDays: input.maxOverdueDays,
@@ -61,20 +75,23 @@ export class LoanDomainPolicyService {
     return forceCrossBranchShipment ?? sourceBranchId !== pickupBranchId;
   }
 
-  assertRenewalAllowed(input: RenewLoanDto, context: RenewalContext): void {
+  assertRenewalAllowed(
+    context: RenewalContext,
+    blockers: RenewalBlockers,
+  ): void {
     if (context.status !== 'ACTIVE') {
       throw new ConflictException(
         `Only ACTIVE loans can be renewed. Current status: ${context.status}`,
       );
     }
 
-    if (input.hasThirdPartyReservation) {
+    if (blockers.hasThirdPartyReservation) {
       throw new ConflictException(
         'Loan cannot be renewed because there is a third-party reservation',
       );
     }
 
-    if (input.hasOutstandingDebt) {
+    if (blockers.hasOutstandingDebt) {
       throw new ConflictException(
         'Loan cannot be renewed because member has outstanding debt',
       );

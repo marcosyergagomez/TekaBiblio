@@ -25,10 +25,10 @@ TekaBiblio/
 - Backend: NestJS 11, TypeScript, mysql2
 - Frontend: React 18, Vite 5, react-router-dom 7, i18next con JSON
 - Base de datos: MySQL 8 (scripts SQL en `apps/api/database`)
-- Infra local: Docker Compose (db, pma, redis, api, web)
+- Infra local: Docker Compose (db, pma, api, web)
 - Calidad: ESLint, TypeScript, Jest (API), Vitest (web)
 
-Nota: Redis esta definido en Docker Compose para entorno local, pero no es dependencia de runtime de los modulos actuales de negocio.
+La API usa MySQL como unica fuente de datos en runtime. El doble en memoria solo existe para tests unitarios y para DB_DISABLE=1, que el arranque de produccion rechaza. Redis ya no forma parte del entorno local.
 
 ## Requisitos
 
@@ -41,7 +41,7 @@ Nota: Redis esta definido en Docker Compose para entorno local, pero no es depen
 1. Clonar e instalar dependencias:
 
 ```bash
-git clone https://github.com/MarcosYerga/TekaBiblio.git
+git clone https://github.com/marcosyergagomez/TekaBiblio.git
 cd TekaBiblio
 corepack enable
 pnpm install
@@ -57,7 +57,7 @@ copy apps\api\.env.example apps\api\.env
 3. Levantar servicios de datos:
 
 ```bash
-docker compose up -d db pma redis
+docker compose up -d db pma
 ```
 
 4. Ejecutar API y web:

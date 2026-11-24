@@ -1,7 +1,14 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  NotFoundException,
+  Optional,
+} from '@nestjs/common';
+import { RowDataPacket } from 'mysql2/promise';
+import { SqlStoreService } from '../database/sql-store.service';
 import { MaterialsService } from '../materials/materials.service';
 import { CopyStatus } from '../materials/materials.types';
-import { getShipmentFee } from '../loans/loan-policies';
+import { getShipmentFee, MembershipLevel } from '../loans/loan-policies';
 import { paginateFromQuery } from '../common/pagination';
 import { CreateReservationDto } from './dto/create-reservation.dto';
 import { ListReservationsDto } from './dto/list-reservations.dto';
@@ -33,22 +40,64 @@ export class ReservationsService {
   constructor(
     private readonly reservationsRepository: ReservationsRepository,
     private readonly materialsService: MaterialsService,
+    @Optional() private readonly sqlStore?: SqlStoreService,
   ) {}
 
   async createReservation(input: CreateReservationDto): Promise<{
     reservation: ReservationRecord;
     shipment?: ShipmentRecord;
   }> {
+    if (this.sqlStore?.isEnabled()) {
+      return this.sqlStore.transaction(() => this.createReservationWork(input));
+    }
+
+    return this.createReservationWork(input);
+  }
+
+  private async createReservationWork(input: CreateReservationDto): Promise<{
+    reservation: ReservationRecord;
+    shipment?: ShipmentRecord;
+  }> {
     await this.materialsService.getMaterialOrThrow(input.materialId);
 
-    let reservation = await this.reservationsRepository.createReservation({
-      memberId: input.memberId,
-      materialId: input.materialId,
-      sourceBranchId: input.sourceBranchId,
-      pickupBranchId: input.pickupBranchId,
-    });
-
     let shipment: ShipmentRecord | undefined;
+    let heldCopyId: string | undefined;
+    if (input.sourceBranchId !== input.pickupBranchId) {
+      const availableCopy = await this.materialsService.findAvailableCopy(
+        input.materialId,
+        input.sourceBranchId,
+      );
+      if (!availableCopy) {
+        throw new ConflictException(
+          'No source copy available for cross-branch reservation',
+        );
+      }
+
+      await this.materialsService.claimAvailableCopy(
+        availableCopy.id,
+        CopyStatus.IN_TRANSFER,
+      );
+      heldCopyId = availableCopy.id;
+    }
+
+    let reservation: ReservationRecord;
+    try {
+      reservation = await this.reservationsRepository.createReservation({
+        memberId: input.memberId,
+        materialId: input.materialId,
+        sourceBranchId: input.sourceBranchId,
+        pickupBranchId: input.pickupBranchId,
+      });
+    } catch (error) {
+      if (heldCopyId) {
+        await this.materialsService.updateCopyStatus(
+          heldCopyId,
+          CopyStatus.AVAILABLE,
+        );
+      }
+
+      throw error;
+    }
 
     if (input.sourceBranchId === input.pickupBranchId) {
       const now = new Date();
@@ -60,33 +109,32 @@ export class ReservationsService {
       ).toISOString();
       reservation =
         await this.reservationsRepository.saveReservation(reservation);
-    } else {
-      const copies = await this.materialsService.listCopies();
-      const availableCopy = copies.find((copy) => {
-        return (
-          copy.materialId === input.materialId &&
-          copy.branchId === input.sourceBranchId &&
-          copy.status === CopyStatus.AVAILABLE
-        );
-      });
-
-      if (!availableCopy) {
-        throw new ConflictException(
-          'No source copy available for cross-branch reservation',
-        );
-      }
-
+    } else if (heldCopyId) {
       const now = new Date();
-      shipment = await this.reservationsRepository.createShipment({
-        reservationId: reservation.id,
-        copyId: availableCopy.id,
-        fromBranchId: input.sourceBranchId,
-        toBranchId: input.pickupBranchId,
-        chargedFee: getShipmentFee(input.membershipLevel, true),
-        requestedAt: now.toISOString(),
-        slaTargetAt: addHours(now, SHIPMENT_TARGET_HOURS).toISOString(),
-        slaDeadlineAt: addDays(now, SHIPMENT_DEADLINE_DAYS).toISOString(),
-      });
+      try {
+        shipment = await this.reservationsRepository.createShipment({
+          reservationId: reservation.id,
+          memberId: input.memberId,
+          copyId: heldCopyId,
+          fromBranchId: input.sourceBranchId,
+          toBranchId: input.pickupBranchId,
+          chargedFee: getShipmentFee(
+            await this.resolveMembershipLevel(input),
+            true,
+          ),
+          requestedAt: now.toISOString(),
+          slaTargetAt: addHours(now, SHIPMENT_TARGET_HOURS).toISOString(),
+          slaDeadlineAt: addDays(now, SHIPMENT_DEADLINE_DAYS).toISOString(),
+        });
+      } catch (error) {
+        reservation.status = ReservationStatus.CANCELLED;
+        await this.reservationsRepository.saveReservation(reservation);
+        await this.materialsService.updateCopyStatus(
+          heldCopyId,
+          CopyStatus.AVAILABLE,
+        );
+        throw error;
+      }
     }
 
     return { reservation, shipment };
@@ -200,6 +248,16 @@ export class ReservationsService {
 
     if (savedShipment.loanId) {
       await this.syncCopyStatusFromLoanShipment(savedShipment);
+    } else if (savedShipment.status === ShipmentStatus.CANCELLED) {
+      await this.materialsService.updateCopyStatus(
+        savedShipment.copyId,
+        CopyStatus.AVAILABLE,
+      );
+    } else if (savedShipment.status === ShipmentStatus.LOST) {
+      await this.materialsService.updateCopyStatus(
+        savedShipment.copyId,
+        CopyStatus.LOST,
+      );
     }
 
     if (!savedShipment.reservationId) {
@@ -285,5 +343,29 @@ export class ReservationsService {
         CopyStatus.LOST,
       );
     }
+  }
+
+  private async resolveMembershipLevel(
+    input: CreateReservationDto,
+  ): Promise<MembershipLevel> {
+    if (!this.sqlStore?.isEnabled()) {
+      return input.membershipLevel ?? MembershipLevel.BRONCE;
+    }
+
+    const rows = await this.sqlStore.query<
+      RowDataPacket & { membershipLevel: string }
+    >(
+      `SELECT membership_level AS membershipLevel
+       FROM members
+       WHERE id = ?
+       LIMIT 1`,
+      [input.memberId],
+    );
+    const level = rows[0]?.membershipLevel;
+    if (!Object.values(MembershipLevel).includes(level as MembershipLevel)) {
+      throw new NotFoundException(`Member ${input.memberId} not found`);
+    }
+
+    return level as MembershipLevel;
   }
 }

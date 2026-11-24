@@ -1,10 +1,13 @@
 import {
   ConflictException,
+  Inject,
   Injectable,
   NotFoundException,
+  forwardRef,
 } from '@nestjs/common';
 import { AuditService } from '../audit/audit.service';
 import { RequestUser, UserRole } from '../auth/user-role.enum';
+import { branchScopeId, scopedMemberFilter } from '../common/access-scope';
 import { paginateFromQuery } from '../common/pagination';
 import { LoansService } from '../loans/loans.service';
 import { CreateLoanPenaltyDto } from './dto/create-loan-penalty.dto';
@@ -18,6 +21,7 @@ import { PenaltyRecord, PenaltyStatus, PenaltyType } from './penalties.types';
 export class PenaltiesService {
   constructor(
     private readonly penaltiesRepository: PenaltiesRepository,
+    @Inject(forwardRef(() => LoansService))
     private readonly loansService: LoansService,
     private readonly auditService: AuditService,
   ) {}
@@ -66,12 +70,8 @@ export class PenaltiesService {
       throw new ConflictException('Loan does not have late fee to penalize');
     }
 
-    const existing = await this.penaltiesRepository.list();
-    const alreadyExists = existing.some(
-      (item) =>
-        item.loanId === loan.id &&
-        item.penaltyType === PenaltyType.LATE_RETURN &&
-        item.status !== PenaltyStatus.WAIVED,
+    const alreadyExists = await this.penaltiesRepository.hasOpenLatePenalty(
+      loan.id,
     );
 
     if (alreadyExists) {
@@ -93,11 +93,11 @@ export class PenaltiesService {
   }
 
   async listPenalties(query: ListPenaltiesDto, user?: RequestUser) {
-    let items = await this.penaltiesRepository.list();
-
-    if (query.memberId) {
-      items = items.filter((item) => item.memberId === query.memberId);
-    }
+    const memberId = scopedMemberFilter(user, query.memberId);
+    let items = await this.penaltiesRepository.list({
+      memberId,
+      memberHomeBranchId: branchScopeId(user),
+    });
 
     if (query.loanId) {
       items = items.filter((item) => item.loanId === query.loanId);
@@ -149,6 +149,35 @@ export class PenaltiesService {
     }
 
     return penalty;
+  }
+
+  async getPenaltyOrThrow(penaltyId: string): Promise<PenaltyRecord> {
+    return this.penaltiesRepository.getByIdOrThrow(penaltyId);
+  }
+
+  async markPendingPenaltyPaid(
+    penaltyId: string,
+    actor?: RequestUser,
+  ): Promise<PenaltyRecord | undefined> {
+    const penalty = await this.penaltiesRepository.markPaidIfPending(penaltyId);
+    if (!penalty || !actor) {
+      return penalty;
+    }
+
+    await this.auditService.recordEvent({
+      actorUserId: actor.userId,
+      branchId: actor.branchId,
+      action: 'PENALTY_MARK_PAID',
+      entityType: 'penalty',
+      entityId: penalty.id,
+    });
+    return penalty;
+  }
+
+  async restorePendingPenalty(penaltyId: string): Promise<void> {
+    const penalty = await this.penaltiesRepository.getByIdOrThrow(penaltyId);
+    penalty.status = PenaltyStatus.PENDING;
+    await this.penaltiesRepository.save(penalty);
   }
 
   async markPenaltyPaid(

@@ -59,6 +59,7 @@ export type CreateReservationInput = {
 export type CreateShipmentInput = {
   reservationId?: string;
   loanId?: string;
+  memberId?: string;
   copyId: string;
   fromBranchId: string;
   toBranchId: string;

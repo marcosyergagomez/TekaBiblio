@@ -46,10 +46,6 @@ describe('ReportsService', () => {
       copyId: copy.id,
       pickupBranchId: 'branch_centro',
       membershipLevel: MembershipLevel.BRONCE,
-      activeLoansCount: 0,
-      debtTotal: 0,
-      maxOverdueDays: 0,
-      overdueLoansLast60Days: 0,
     });
 
     return { material, copy, loan };
@@ -68,10 +64,6 @@ describe('ReportsService', () => {
       copyId: secondCopySameMaterial.id,
       pickupBranchId: 'branch_centro',
       membershipLevel: MembershipLevel.BRONCE,
-      activeLoansCount: 0,
-      debtTotal: 0,
-      maxOverdueDays: 0,
-      overdueLoansLast60Days: 0,
     });
 
     await createLoanForMaterial(MaterialType.PELICULA, 'Other Movie');

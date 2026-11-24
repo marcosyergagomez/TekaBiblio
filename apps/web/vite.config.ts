@@ -9,6 +9,7 @@ export default defineConfig({
     port: 5173,
   },
   test: {
+    environment: 'jsdom',
     exclude: [...configDefaults.exclude, 'e2e/**'],
   },
 });

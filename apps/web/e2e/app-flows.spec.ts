@@ -106,7 +106,28 @@ test('catalog flow shows mocked materials after search', async ({ page }) => {
 });
 
 test('staff flow creates material and loads dashboard', async ({ page }) => {
-  await page.route('**/materials', async (route) => {
+  await page.route('http://localhost:3000/members**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ items: [] }),
+    });
+  });
+  await page.route('**/copies**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ items: [], total: 0, page: 1, pageSize: 100 }),
+    });
+  });
+  await page.route('http://localhost:3000/loans**', async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ items: [], total: 0, page: 1, pageSize: 100 }),
+    });
+  });
+  await page.route('**/materials**', async (route) => {
     if (route.request().method() === 'POST') {
       await route.fulfill({
         status: 201,

@@ -1,6 +1,24 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Inject,
+  Injectable,
+  NotFoundException,
+  Optional,
+  UnprocessableEntityException,
+  forwardRef,
+} from '@nestjs/common';
+import { RequestUser } from '../auth/user-role.enum';
+import {
+  assertBranchFilter,
+  branchScopeId,
+  enforceBranchScope,
+  enforceMemberScope,
+  scopedMemberFilter,
+} from '../common/access-scope';
+import { SqlStoreService } from '../database/sql-store.service';
 import { MaterialsService } from '../materials/materials.service';
 import { CopyStatus } from '../materials/materials.types';
+import { PenaltiesRepository } from '../penalties/penalties.repository';
+import { PenaltyType } from '../penalties/penalties.types';
 import { CalculateLateFeeDto } from './dto/calculate-late-fee.dto';
 import { CreateLoanDto } from './dto/create-loan.dto';
 import { ListLoansDto } from './dto/list-loans.dto';
@@ -18,12 +36,11 @@ import {
   MaterialType,
   RENEWAL_LIMIT_BY_LEVEL,
   SHIPMENT_FEE_BY_LEVEL,
-  getFinalPrice,
   getLateFee,
   getLoanDays,
   getShipmentFee,
+  roundMoney,
 } from './loan-policies';
-import { paginateFromQuery } from '../common/pagination';
 import { LoanDomainPolicyService } from './loan-domain-policy.service';
 
 const SHIPMENT_TARGET_HOURS = 48;
@@ -71,6 +88,10 @@ export class LoansService {
     private readonly materialsService: MaterialsService,
     private readonly reservationsRepository: ReservationsRepository,
     private readonly loanDomainPolicyService: LoanDomainPolicyService,
+    @Optional()
+    @Inject(forwardRef(() => PenaltiesRepository))
+    private readonly penaltiesRepository?: PenaltiesRepository,
+    @Optional() private readonly sqlStore?: SqlStoreService,
   ) {}
 
   getPolicies(): LoanPoliciesSnapshot {
@@ -90,15 +111,31 @@ export class LoansService {
     };
   }
 
-  async createLoan(input: CreateLoanDto): Promise<LoanRecord> {
-    this.loanDomainPolicyService.assertCreateLoanAllowed(input);
+  async createLoan(
+    input: CreateLoanDto,
+    user?: RequestUser,
+  ): Promise<LoanRecord> {
+    enforceBranchScope(user, [input.pickupBranchId]);
+    return this.inTransaction(() => this.openLoan(input));
+  }
 
-    const copy = await this.materialsService.getCopyOrThrow(input.copyId);
+  private async openLoan(input: CreateLoanDto): Promise<LoanRecord> {
+    await this.loansRepository.lockMemberForCheckout(input.memberId);
+    const copy = await this.materialsService.lockCopy(input.copyId);
     const material = await this.materialsService.getMaterialOrThrow(
       copy.materialId,
     );
-
     this.loanDomainPolicyService.assertCopyAvailable(copy.id, copy.status);
+
+    const membershipLevel = await this.loansRepository.resolveMembershipLevel(
+      input.memberId,
+      input.membershipLevel,
+    );
+    const risk = await this.buildMemberRisk(input.memberId);
+    this.loanDomainPolicyService.assertCreateLoanAllowed({
+      membershipLevel,
+      ...risk,
+    });
 
     const crossBranchShipment =
       this.loanDomainPolicyService.resolveCrossBranchShipment(
@@ -106,45 +143,52 @@ export class LoansService {
         copy.branchId,
         input.pickupBranchId,
       );
-
     const startDate = input.startDate ? new Date(input.startDate) : new Date();
-    const loanDays = getLoanDays(material.materialType, input.membershipLevel);
-    const dueDate = this.addDays(startDate, loanDays);
-    const basePrice = material.basePrice;
-    const finalPrice = getFinalPrice(
-      material.materialType,
-      input.membershipLevel,
-    );
-    const shipmentFee = getShipmentFee(
-      input.membershipLevel,
-      crossBranchShipment,
-    );
+    if (Number.isNaN(startDate.getTime())) {
+      throw new UnprocessableEntityException('Invalid start date');
+    }
 
+    const loanDays = getLoanDays(material.materialType, membershipLevel);
+    const dueDate = this.addDays(startDate, loanDays);
+    const levelAdjustment =
+      this.loanDomainPolicyService.getLevelAdjustment(membershipLevel);
+    const finalPrice = roundMoney(material.basePrice * (1 + levelAdjustment));
+    const shipmentFee = getShipmentFee(membershipLevel, crossBranchShipment);
+    const nextCopyStatus = crossBranchShipment
+      ? CopyStatus.IN_TRANSFER
+      : CopyStatus.ON_LOAN;
+
+    await this.materialsService.claimAvailableCopy(
+      input.copyId,
+      nextCopyStatus,
+    );
     const loan = await this.loansRepository.create({
       memberId: input.memberId,
       copyId: input.copyId,
       sourceBranchId: copy.branchId,
       pickupBranchId: input.pickupBranchId,
       materialType: material.materialType,
-      membershipLevel: input.membershipLevel,
+      membershipLevel,
       startDate: startDate.toISOString(),
       dueDate: dueDate.toISOString(),
       renewalCount: 0,
       status: 'ACTIVE',
       crossBranchShipment,
       shipmentFee,
-      basePrice,
-      levelAdjustment: this.loanDomainPolicyService.getLevelAdjustment(
-        input.membershipLevel,
-      ),
+      basePrice: material.basePrice,
+      levelAdjustment,
       finalPrice,
     });
 
-    if (crossBranchShipment) {
-      const now = new Date();
+    if (!crossBranchShipment) {
+      return loan;
+    }
 
+    const now = new Date();
+    try {
       await this.reservationsRepository.createShipment({
         loanId: loan.id,
+        memberId: input.memberId,
         copyId: input.copyId,
         fromBranchId: copy.branchId,
         toBranchId: input.pickupBranchId,
@@ -153,93 +197,135 @@ export class LoansService {
         slaTargetAt: this.addHours(now, SHIPMENT_TARGET_HOURS).toISOString(),
         slaDeadlineAt: this.addDays(now, SHIPMENT_DEADLINE_DAYS).toISOString(),
       });
+    } catch (error) {
+      if (!this.sqlStore?.isEnabled()) {
+        await this.materialsService.updateCopyStatus(
+          input.copyId,
+          CopyStatus.AVAILABLE,
+        );
+        await this.loansRepository.deleteById(loan.id);
+      }
+      throw error;
     }
 
-    await this.materialsService.updateCopyStatus(
-      input.copyId,
-      crossBranchShipment ? CopyStatus.IN_TRANSFER : CopyStatus.ON_LOAN,
-    );
     return loan;
   }
 
-  async listLoans(query: ListLoansDto): Promise<{
-    items: LoanRecord[];
-    total: number;
-    page: number;
-    pageSize: number;
-  }> {
-    let items = await this.loansRepository.findAll();
-
-    if (query.memberId) {
-      items = items.filter((loan) => loan.memberId === query.memberId);
-    }
-
-    if (query.status) {
-      items = items.filter((loan) => loan.status === query.status);
-    }
-
-    if (query.sourceBranchId) {
-      items = items.filter(
-        (loan) => loan.sourceBranchId === query.sourceBranchId,
-      );
-    }
-
-    if (query.pickupBranchId) {
-      items = items.filter(
-        (loan) => loan.pickupBranchId === query.pickupBranchId,
-      );
-    }
-
-    return paginateFromQuery(items, query, 20);
-  }
-
-  async renewLoan(input: RenewLoanDto): Promise<LoanRecord> {
-    const loan = await this.getLoanOrThrow(input.loanId);
-
-    this.loanDomainPolicyService.assertRenewalAllowed(input, {
-      loanId: loan.id,
-      status: loan.status,
-      membershipLevel: loan.membershipLevel,
-      renewalCount: loan.renewalCount,
+  async listLoans(query: ListLoansDto, user?: RequestUser) {
+    assertBranchFilter(user, query.sourceBranchId);
+    assertBranchFilter(user, query.pickupBranchId);
+    return this.loansRepository.search({
+      ...query,
+      memberId: scopedMemberFilter(user, query.memberId),
+      branchScopeId: branchScopeId(user),
     });
-
-    const currentDueDate = new Date(loan.dueDate);
-    const extensionDays = getLoanDays(loan.materialType, loan.membershipLevel);
-    const nextDueDate = this.addDays(currentDueDate, extensionDays);
-
-    loan.renewalCount += 1;
-    loan.dueDate = nextDueDate.toISOString();
-    await this.loansRepository.save(loan);
-
-    return loan;
   }
 
-  async returnLoan(input: ReturnLoanDto): Promise<LoanRecord> {
-    const loan = await this.getLoanOrThrow(input.loanId);
+  async listLoansInRange(range: {
+    from?: string;
+    to?: string;
+    branchId?: string;
+  }): Promise<LoanRecord[]> {
+    return this.loansRepository.findForReport(range);
+  }
 
-    this.loanDomainPolicyService.assertReturnAllowed(loan.id, loan.status);
+  async renewLoan(
+    input: RenewLoanDto,
+    user?: RequestUser,
+  ): Promise<LoanRecord> {
+    return this.inTransaction(async () => {
+      const loan = await this.loansRepository.lockById(input.loanId);
+      if (!loan) {
+        throw new NotFoundException(`Loan ${input.loanId} not found`);
+      }
 
-    const returnedAt = input.returnedAt
-      ? new Date(input.returnedAt)
-      : new Date();
-    const dueDate = new Date(loan.dueDate);
-    const overdueDays = this.loanDomainPolicyService.computeOverdueDays(
-      dueDate,
-      returnedAt,
-    );
-    const lateFee = getLateFee(loan.materialType, overdueDays);
+      enforceMemberScope(user, loan.memberId);
+      enforceBranchScope(user, [loan.sourceBranchId, loan.pickupBranchId]);
+      const copy = await this.materialsService.getCopyOrThrow(loan.copyId);
+      await this.reservationsRepository.lockActiveForMaterial(copy.materialId);
+      const hasThirdPartyReservation =
+        await this.reservationsRepository.hasActiveReservationByOtherMember(
+          copy.materialId,
+          loan.memberId,
+        );
+      const debtTotal = await this.pendingDebt(loan.memberId);
+      this.loanDomainPolicyService.assertRenewalAllowed(
+        {
+          loanId: loan.id,
+          status: loan.status,
+          membershipLevel: loan.membershipLevel,
+          renewalCount: loan.renewalCount,
+        },
+        {
+          hasThirdPartyReservation,
+          hasOutstandingDebt: debtTotal > 0,
+        },
+      );
 
-    loan.status = 'RETURNED';
-    loan.returnedAt = returnedAt.toISOString();
-    loan.overdueDays = overdueDays;
-    loan.lateFee = lateFee;
-    await this.materialsService.updateCopyStatus(
-      loan.copyId,
-      CopyStatus.AVAILABLE,
-    );
-    await this.loansRepository.save(loan);
+      const currentDueDate = new Date(loan.dueDate);
+      const extensionDays = getLoanDays(
+        loan.materialType,
+        loan.membershipLevel,
+      );
+      const nextDueDate = this.addDays(currentDueDate, extensionDays);
 
-    return loan;
+      loan.renewalCount += 1;
+      loan.dueDate = nextDueDate.toISOString();
+      await this.loansRepository.save(loan);
+      return loan;
+    });
+  }
+
+  async returnLoan(
+    input: ReturnLoanDto,
+    user?: RequestUser,
+  ): Promise<LoanRecord> {
+    return this.inTransaction(async () => {
+      const loan = await this.loansRepository.lockById(input.loanId);
+      if (!loan) {
+        throw new NotFoundException(`Loan ${input.loanId} not found`);
+      }
+
+      enforceMemberScope(user, loan.memberId);
+      enforceBranchScope(user, [loan.sourceBranchId, loan.pickupBranchId]);
+      this.loanDomainPolicyService.assertReturnAllowed(loan.id, loan.status);
+
+      const returnedAt = input.returnedAt
+        ? new Date(input.returnedAt)
+        : new Date();
+      const dueDate = new Date(loan.dueDate);
+      const overdueDays = this.loanDomainPolicyService.computeOverdueDays(
+        dueDate,
+        returnedAt,
+      );
+      const lateFee = getLateFee(loan.materialType, overdueDays);
+
+      loan.status = 'RETURNED';
+      loan.returnedAt = returnedAt.toISOString();
+      loan.overdueDays = overdueDays;
+      loan.lateFee = lateFee;
+      await this.materialsService.updateCopyStatus(
+        loan.copyId,
+        CopyStatus.AVAILABLE,
+      );
+      await this.loansRepository.save(loan);
+
+      if (lateFee > 0 && this.penaltiesRepository) {
+        const alreadyCharged =
+          await this.penaltiesRepository.hasOpenLatePenalty(loan.id);
+        if (!alreadyCharged) {
+          await this.penaltiesRepository.create({
+            memberId: loan.memberId,
+            loanId: loan.id,
+            penaltyType: PenaltyType.LATE_RETURN,
+            amount: lateFee,
+            reason: `Late return for loan ${loan.id}`,
+          });
+        }
+      }
+
+      return loan;
+    });
   }
 
   calculateLateFee(input: CalculateLateFeeDto): {
@@ -254,8 +340,40 @@ export class LoansService {
     };
   }
 
-  async findOne(loanId: string): Promise<LoanRecord> {
-    return this.getLoanOrThrow(loanId);
+  async findOne(loanId: string, user?: RequestUser): Promise<LoanRecord> {
+    const loan = await this.getLoanOrThrow(loanId);
+    enforceMemberScope(user, loan.memberId);
+    enforceBranchScope(user, [loan.sourceBranchId, loan.pickupBranchId]);
+    return loan;
+  }
+
+  private async buildMemberRisk(memberId: string): Promise<{
+    activeLoansCount: number;
+    debtTotal: number;
+    maxOverdueDays: number;
+    overdueLoansLast60Days: number;
+  }> {
+    const risk = await this.loansRepository.memberRisk(memberId);
+    return {
+      ...risk,
+      debtTotal: await this.pendingDebt(memberId),
+    };
+  }
+
+  private inTransaction<T>(work: () => Promise<T>): Promise<T> {
+    if (this.sqlStore?.isEnabled()) {
+      return this.sqlStore.transaction(work);
+    }
+
+    return work();
+  }
+
+  private async pendingDebt(memberId: string): Promise<number> {
+    if (!this.penaltiesRepository) {
+      return 0;
+    }
+
+    return this.penaltiesRepository.sumPendingByMember(memberId);
   }
 
   private async getLoanOrThrow(loanId: string): Promise<LoanRecord> {

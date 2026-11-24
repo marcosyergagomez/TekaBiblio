@@ -20,6 +20,10 @@ describe('API (e2e)', () => {
     await app.init();
   });
 
+  afterEach(async () => {
+    await app.close();
+  });
+
   it('/health (GET)', () => {
     return request(app.getHttpServer())
       .get('/health')
@@ -112,14 +116,11 @@ describe('API (e2e)', () => {
       .post('/loans')
       .set(adminHeaders)
       .send({
-        memberId: 'member_e2e_1',
+        memberId: 'mbr_bronce_01',
         copyId: copy.body.id,
         pickupBranchId: 'branch_norte',
         membershipLevel: 'BRONCE',
-        activeLoansCount: 0,
-        debtTotal: 0,
-        maxOverdueDays: 0,
-        overdueLoansLast60Days: 0,
+        startDate: new Date(Date.now() - 40 * 24 * 60 * 60 * 1000).toISOString(),
       })
       .expect(201);
 
@@ -141,7 +142,32 @@ describe('API (e2e)', () => {
       .expect(200);
 
     expect(dashboard.body.income).toBeDefined();
+    expect(dashboard.body.income.totals.loans).toBeGreaterThan(0);
     expect(dashboard.body.popularity).toBeDefined();
+
+    const returned = await request(app.getHttpServer())
+      .post('/loans/return')
+      .set(adminHeaders)
+      .send({ loanId: loan.body.id })
+      .expect(201);
+
+    expect(returned.body.status).toBe('RETURNED');
+    expect(returned.body.lateFee).toBe(20);
+
+    const penalties = await request(app.getHttpServer())
+      .get('/penalties')
+      .set(adminHeaders)
+      .query({ memberId: 'mbr_bronce_01' })
+      .expect(200);
+
+    expect(
+      penalties.body.items.some(
+        (item: { loanId?: string; penaltyType?: string; amount?: number }) =>
+          item.loanId === loan.body.id &&
+          item.penaltyType === 'LATE_RETURN' &&
+          item.amount === 20,
+      ),
+    ).toBe(true);
   });
 
   it('registers penalties and payments and exposes audit logs', async () => {
@@ -149,7 +175,7 @@ describe('API (e2e)', () => {
       .post('/penalties')
       .set(adminHeaders)
       .send({
-        memberId: 'member_penalty_e2e',
+        memberId: 'mbr_plata_01',
         penaltyType: 'DAMAGE',
         amount: 9.5,
         reason: 'Broken cover',
@@ -162,7 +188,7 @@ describe('API (e2e)', () => {
       .post('/payments')
       .set(adminHeaders)
       .send({
-        memberId: 'member_penalty_e2e',
+        memberId: 'mbr_plata_01',
         penaltyId: penalty.body.id,
         amount: 9.5,
         method: 'CARD',
@@ -174,7 +200,7 @@ describe('API (e2e)', () => {
     const penalties = await request(app.getHttpServer())
       .get('/penalties')
       .set(adminHeaders)
-      .query({ memberId: 'member_penalty_e2e' })
+      .query({ memberId: 'mbr_plata_01' })
       .expect(200);
 
     expect(penalties.body.items.some((item: { id: string; status: string }) => item.id === penalty.body.id && item.status === 'PAID')).toBe(true);

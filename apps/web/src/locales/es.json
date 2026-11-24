@@ -8,7 +8,9 @@
     "catalog": "Catalogo",
     "loans": "Mis prestamos",
     "reservations": "Mis reservas",
-    "staff": "Operativa staff"
+    "staff": "Operativa staff",
+    "queue": "Cola",
+    "primary": "Principal"
   },
   "language": {
     "label": "Idioma",
@@ -19,6 +21,8 @@
     "logout": "Cerrar sesion",
     "loginTitle": "Acceso Demo",
     "loginDescription": "Frontend conectado a API real con refresh token y alcance por rol.",
+    "kicker": "Red de sedes",
+    "aside": "Prestamos, reservas y caja, con el alcance de cada rol.",
     "email": "Email",
     "password": "Password",
     "submitIdle": "Entrar",
@@ -34,7 +38,15 @@
   "common": {
     "loading": "Cargando...",
     "notAvailable": "-",
-    "currency": "EUR"
+    "currency": "EUR",
+    "retry": "Reintentar",
+    "empty": "No hay resultados.",
+    "errorGeneric": "No se pudo completar la operacion.",
+    "unexpected": "La pantalla ha fallado.",
+    "previous": "Anterior",
+    "next": "Siguiente",
+    "page": "Pagina {{page}} de {{pages}}",
+    "invalidAmount": "El importe no es valido."
   },
   "profile": {
     "title": "Perfil actual",
@@ -50,6 +62,11 @@
     "title": "Catalogo",
     "searchPlaceholder": "Buscar por titulo",
     "search": "Buscar",
+    "empty": "No hay materiales para esa busqueda.",
+    "copiesCount": "{{available}} disponibles / {{total}}",
+    "reserve": "Reservar",
+    "reserved": "Reserva creada para {{title}}.",
+    "reserveFailed": "No se pudo reservar.",
     "table": {
       "title": "Titulo",
       "type": "Tipo",
@@ -60,6 +77,7 @@
   },
   "loans": {
     "title": "Mis prestamos",
+    "empty": "No tienes prestamos.",
     "table": {
       "id": "ID",
       "type": "Tipo",
@@ -70,6 +88,7 @@
   },
   "reservations": {
     "title": "Mis reservas",
+    "empty": "No tienes reservas.",
     "table": {
       "id": "ID",
       "materialId": "Material",
@@ -79,14 +98,36 @@
       "expiresAt": "Expira"
     }
   },
+  "queue": {
+    "title": "Cola de sede",
+    "description": "Reservas pendientes y envios entre sedes.",
+    "reservations": "Reservas",
+    "shipments": "Envios",
+    "markReady": "Lista para recoger",
+    "advance": "Cambiar estado del envio",
+    "emptyReservations": "No hay reservas.",
+    "emptyShipments": "No hay envios.",
+    "updated": "Cola actualizada.",
+    "failed": "No se pudo actualizar la cola."
+  },
   "staff": {
     "title": "Panel Staff",
-    "description": "Flujos operativos de mostrador para demo: altas, ediciones, checkout, penalizaciones y cobros.",
+    "description": "Mostrador: presta un ejemplar libre, devuelve lo que vuelve y deja el alta de catalogo debajo.",
     "resultTitle": "Resultado",
     "resultIdle": "Sin operaciones recientes",
-    "resultSuccess": "{{label}} OK\n{{payload}}",
-    "resultError": "{{label}} ERROR\n{{message}}",
+    "resultSuccess": "{{label}} OK",
+    "resultError": "{{label}}: {{message}}",
     "unknownError": "Operacion fallida",
+    "desk": {
+      "lendTitle": "Prestar ahora",
+      "returnTitle": "Devoluciones de hoy",
+      "returnAction": "Devolver",
+      "renewAction": "Renovar",
+      "member": "Socio",
+      "copy": "Ejemplar disponible",
+      "choose": "Elegir",
+      "emptyLoans": "No hay prestamos activos."
+    },
     "actions": {
       "createMaterial": "Crear material",
       "updateMaterial": "Actualizar material",
@@ -96,6 +137,24 @@
       "loadDashboard": "Cargar dashboard"
     },
     "forms": {
+      "labels": {
+        "title": "Titulo",
+        "type": "Tipo",
+        "releaseDate": "Fecha",
+        "homeBranch": "Sede",
+        "basePrice": "Precio",
+        "materialId": "ID de material",
+        "memberId": "ID de socio",
+        "copyId": "ID de ejemplar",
+        "pickupBranch": "Sede de recogida",
+        "membership": "Nivel",
+        "penaltyType": "Tipo de penalizacion",
+        "amount": "Importe",
+        "reason": "Motivo",
+        "penaltyId": "ID de penalizacion",
+        "loanId": "ID de prestamo",
+        "method": "Metodo"
+      },
       "createMaterial": {
         "title": "Alta de material",
         "placeholders": {
@@ -111,7 +170,8 @@
           "title": "Nuevo titulo",
           "basePrice": "Nuevo precio"
         },
-        "button": "Actualizar material"
+        "button": "Actualizar material",
+        "missingChange": "Indica un titulo o un precio."
       },
       "createLoan": {
         "title": "Checkout de prestamo",
@@ -146,7 +206,8 @@
       "loans": "Prestamos",
       "revenue": "Revenue",
       "losses": "Perdidas",
-      "lostCopies": "Lost Copies"
+      "lostCopies": "Ejemplares perdidos",
+      "invalid": "El dashboard no tiene el formato esperado."
     }
   },
   "enums": {

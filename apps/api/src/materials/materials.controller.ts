@@ -13,6 +13,7 @@ import { Request } from 'express';
 import { Public } from '../auth/decorators/public.decorator';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { RequestUser, UserRole } from '../auth/user-role.enum';
+import { SqlStoreService } from '../database/sql-store.service';
 import { CreateCopyDto } from './dto/create-copy.dto';
 import { CreateMaterialDto } from './dto/create-material.dto';
 import { ListCopiesDto } from './dto/list-copies.dto';
@@ -101,5 +102,44 @@ export class MaterialsController {
     @Body() body: UpdateCopyStatusDto,
   ) {
     return this.materialsService.updateCopyStatus(copyId, body.status);
+  }
+}
+
+type MemberListItem = {
+  id: string;
+  fullName: string;
+  membershipLevel: string;
+  homeBranchId: string;
+};
+
+@Controller('members')
+export class MembersController {
+  constructor(private readonly sqlStore: SqlStoreService) {}
+
+  @Roles(UserRole.ADMIN_GLOBAL, UserRole.ADMIN_SEDE, UserRole.BIBLIOTECARIO)
+  @Get()
+  async list(): Promise<{ items: MemberListItem[] }> {
+    if (!this.sqlStore.isEnabled()) {
+      return { items: [] };
+    }
+
+    const rows = await this.sqlStore.query<
+      MemberListItem & import('mysql2/promise').RowDataPacket
+    >(
+      `SELECT m.id AS id, u.full_name AS fullName, m.membership_level AS membershipLevel,
+              m.home_branch_id AS homeBranchId
+       FROM members m
+       INNER JOIN users u ON u.id = m.user_id
+       ORDER BY u.full_name ASC`,
+    );
+
+    return {
+      items: rows.map((row) => ({
+        id: row.id,
+        fullName: row.fullName,
+        membershipLevel: row.membershipLevel,
+        homeBranchId: row.homeBranchId,
+      })),
+    };
   }
 }

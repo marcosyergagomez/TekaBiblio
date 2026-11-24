@@ -36,6 +36,7 @@ export function LanguageSwitcher({ variant = 'chips' }: LanguageSwitcherProps) {
       <button
         type="button"
         className={`chip ${isSpanish ? 'active' : ''}`}
+        aria-pressed={isSpanish}
         onClick={() => i18n.changeLanguage('es')}
       >
         {t('language.es')}
@@ -43,6 +44,7 @@ export function LanguageSwitcher({ variant = 'chips' }: LanguageSwitcherProps) {
       <button
         type="button"
         className={`chip ${!isSpanish ? 'active' : ''}`}
+        aria-pressed={!isSpanish}
         onClick={() => i18n.changeLanguage('en')}
       >
         {t('language.en')}

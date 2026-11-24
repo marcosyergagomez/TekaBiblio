@@ -208,3 +208,9 @@ CREATE INDEX idx_reservations_status_expires ON reservations(status, expires_at)
 CREATE INDEX idx_shipments_status_sla ON shipments(status, sla_deadline_at);
 CREATE INDEX idx_penalties_status ON penalties(status);
 CREATE INDEX idx_payments_paid_at ON payments(paid_at);
+CREATE INDEX idx_loans_member_status ON loans (member_id, status);
+CREATE INDEX idx_loans_starts_at ON loans (starts_at);
+CREATE INDEX idx_penalties_member_status ON penalties (member_id, status);
+CREATE INDEX idx_payments_member ON payments (member_id);
+CREATE INDEX idx_reservations_member ON reservations (member_id);
+CREATE INDEX idx_copies_material_branch_status ON copies (material_id, branch_id, status);

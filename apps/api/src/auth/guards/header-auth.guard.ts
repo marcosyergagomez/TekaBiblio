@@ -17,7 +17,7 @@ export class HeaderAuthGuard implements CanActivate {
     private readonly authService: AuthService,
   ) {}
 
-  canActivate(context: ExecutionContext): boolean {
+  async canActivate(context: ExecutionContext): Promise<boolean> {
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
       context.getHandler(),
       context.getClass(),
@@ -33,7 +33,7 @@ export class HeaderAuthGuard implements CanActivate {
     const bearer = this.extractBearerToken(request.headers.authorization);
 
     if (bearer) {
-      request.user = this.authService.verifyAccessToken(bearer);
+      request.user = await this.authService.verifyAccessToken(bearer);
       return true;
     }
 

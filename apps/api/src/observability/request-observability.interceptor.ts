@@ -34,11 +34,7 @@ export class RequestObservabilityInterceptor implements NestInterceptor {
       statusCode: number;
     }>();
 
-    const requestIdHeader = request.headers['x-request-id'];
-    const requestId =
-      typeof requestIdHeader === 'string' && requestIdHeader.trim().length > 0
-        ? requestIdHeader
-        : randomUUID();
+    const requestId = this.resolveRequestId(request.headers['x-request-id']);
 
     response.setHeader('x-request-id', requestId);
 
@@ -48,7 +44,7 @@ export class RequestObservabilityInterceptor implements NestInterceptor {
       finalize(() => {
         const finishedAt = process.hrtime.bigint();
         const durationMs = Number(finishedAt - startedAt) / 1_000_000;
-        const route = request.route?.path ?? request.path;
+        const route = request.route?.path ?? 'unmatched';
 
         this.observability.recordHttpRequest({
           method: request.method,
@@ -61,9 +57,14 @@ export class RequestObservabilityInterceptor implements NestInterceptor {
           this.observability.recordAuthFailure(request.path);
         }
 
-        const slowThresholdMs = Number(
+        const configuredSlowThreshold = Number(
           process.env.REQUEST_SLOW_THRESHOLD_MS ?? 1000,
         );
+        const slowThresholdMs =
+          Number.isFinite(configuredSlowThreshold) &&
+          configuredSlowThreshold > 0
+            ? configuredSlowThreshold
+            : 1000;
 
         const payload = {
           event: 'http_request',
@@ -85,5 +86,22 @@ export class RequestObservabilityInterceptor implements NestInterceptor {
         this.logger.log(JSON.stringify(payload));
       }),
     );
+  }
+
+  private resolveRequestId(
+    requestIdHeader: string | string[] | undefined,
+  ): string {
+    const candidate = Array.isArray(requestIdHeader)
+      ? requestIdHeader[0]
+      : requestIdHeader;
+
+    if (
+      typeof candidate === 'string' &&
+      /^[A-Za-z0-9._:-]{1,64}$/.test(candidate)
+    ) {
+      return candidate;
+    }
+
+    return randomUUID();
   }
 }

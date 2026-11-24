@@ -8,7 +8,9 @@
     "catalog": "Catalog",
     "loans": "My loans",
     "reservations": "My reservations",
-    "staff": "Staff operations"
+    "staff": "Staff operations",
+    "queue": "Queue",
+    "primary": "Primary"
   },
   "language": {
     "label": "Language",
@@ -19,6 +21,8 @@
     "logout": "Sign out",
     "loginTitle": "Demo Access",
     "loginDescription": "Frontend connected to real API with refresh token and role scope.",
+    "kicker": "Branch network",
+    "aside": "Loans, reservations and the desk, scoped to each role.",
     "email": "Email",
     "password": "Password",
     "submitIdle": "Sign in",
@@ -34,7 +38,15 @@
   "common": {
     "loading": "Loading...",
     "notAvailable": "-",
-    "currency": "EUR"
+    "currency": "EUR",
+    "retry": "Retry",
+    "empty": "No results.",
+    "errorGeneric": "The operation could not be completed.",
+    "unexpected": "This screen failed.",
+    "previous": "Previous",
+    "next": "Next",
+    "page": "Page {{page}} of {{pages}}",
+    "invalidAmount": "The amount is not valid."
   },
   "profile": {
     "title": "Current profile",
@@ -50,6 +62,11 @@
     "title": "Catalog",
     "searchPlaceholder": "Search by title",
     "search": "Search",
+    "empty": "No materials match that search.",
+    "copiesCount": "{{available}} available / {{total}}",
+    "reserve": "Reserve",
+    "reserved": "Reservation created for {{title}}.",
+    "reserveFailed": "The reservation could not be created.",
     "table": {
       "title": "Title",
       "type": "Type",
@@ -60,6 +77,7 @@
   },
   "loans": {
     "title": "My loans",
+    "empty": "You have no loans.",
     "table": {
       "id": "ID",
       "type": "Type",
@@ -70,6 +88,7 @@
   },
   "reservations": {
     "title": "My reservations",
+    "empty": "You have no reservations.",
     "table": {
       "id": "ID",
       "materialId": "Material",
@@ -79,14 +98,36 @@
       "expiresAt": "Expires at"
     }
   },
+  "queue": {
+    "title": "Branch queue",
+    "description": "Pending reservations and shipments between branches.",
+    "reservations": "Reservations",
+    "shipments": "Shipments",
+    "markReady": "Ready for pickup",
+    "advance": "Change shipment status",
+    "emptyReservations": "No reservations.",
+    "emptyShipments": "No shipments.",
+    "updated": "Queue updated.",
+    "failed": "The queue could not be updated."
+  },
   "staff": {
     "title": "Staff panel",
     "description": "Operational front-desk demo flows: create, edit, checkout, penalties and payments.",
     "resultTitle": "Result",
     "resultIdle": "No recent operations",
-    "resultSuccess": "{{label}} OK\n{{payload}}",
-    "resultError": "{{label}} ERROR\n{{message}}",
+    "resultSuccess": "{{label}} OK",
+    "resultError": "{{label}}: {{message}}",
     "unknownError": "Operation failed",
+    "desk": {
+      "lendTitle": "Lend now",
+      "returnTitle": "Returns today",
+      "returnAction": "Return",
+      "renewAction": "Renew",
+      "member": "Member",
+      "copy": "Available copy",
+      "choose": "Choose",
+      "emptyLoans": "No active loans."
+    },
     "actions": {
       "createMaterial": "Create material",
       "updateMaterial": "Update material",
@@ -96,6 +137,24 @@
       "loadDashboard": "Load dashboard"
     },
     "forms": {
+      "labels": {
+        "title": "Title",
+        "type": "Type",
+        "releaseDate": "Release date",
+        "homeBranch": "Branch",
+        "basePrice": "Price",
+        "materialId": "Material ID",
+        "memberId": "Member ID",
+        "copyId": "Copy ID",
+        "pickupBranch": "Pickup branch",
+        "membership": "Level",
+        "penaltyType": "Penalty type",
+        "amount": "Amount",
+        "reason": "Reason",
+        "penaltyId": "Penalty ID",
+        "loanId": "Loan ID",
+        "method": "Method"
+      },
       "createMaterial": {
         "title": "Create material",
         "placeholders": {
@@ -111,7 +170,8 @@
           "title": "New title",
           "basePrice": "New price"
         },
-        "button": "Update material"
+        "button": "Update material",
+        "missingChange": "Enter a title or a price."
       },
       "createLoan": {
         "title": "Loan checkout",
@@ -146,7 +206,8 @@
       "loans": "Loans",
       "revenue": "Revenue",
       "losses": "Losses",
-      "lostCopies": "Lost copies"
+      "lostCopies": "Lost copies",
+      "invalid": "The dashboard payload is not valid."
     }
   },
   "enums": {

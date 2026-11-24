@@ -54,7 +54,7 @@ export class ReservationsRepository {
     const queuePosition = await this.nextQueuePosition(input.materialId);
 
     const reservation: ReservationRecord = {
-      id: `res_${randomUUID().slice(0, 8)}`,
+      id: randomUUID(),
       memberId: input.memberId,
       materialId: input.materialId,
       sourceBranchId: input.sourceBranchId,
@@ -193,9 +193,10 @@ export class ReservationsRepository {
 
   async createShipment(input: CreateShipmentInput): Promise<ShipmentRecord> {
     const shipment: ShipmentRecord = {
-      id: `shp_${randomUUID().slice(0, 8)}`,
+      id: randomUUID(),
       reservationId: input.reservationId,
       loanId: input.loanId,
+      memberId: input.memberId,
       copyId: input.copyId,
       fromBranchId: input.fromBranchId,
       toBranchId: input.toBranchId,
@@ -360,6 +361,60 @@ export class ReservationsRepository {
     );
 
     return rows.map((row) => this.mapShipmentRow(row));
+  }
+
+  async lockActiveForMaterial(materialId: string): Promise<void> {
+    if (!this.isSqlEnabled()) {
+      return;
+    }
+
+    await this.sqlStore!.query(
+      `SELECT id
+       FROM reservations
+       WHERE material_id = ? AND status IN ('QUEUED', 'READY_FOR_PICKUP')
+       FOR UPDATE`,
+      [materialId],
+    );
+  }
+
+  async hasActiveReservationByOtherMember(
+    materialId: string,
+    memberId: string,
+  ): Promise<boolean> {
+    const active = new Set<string>([
+      ReservationStatus.QUEUED,
+      ReservationStatus.READY_FOR_PICKUP,
+    ]);
+
+    if (!this.isSqlEnabled()) {
+      for (const reservation of this.reservations.values()) {
+        if (
+          reservation.materialId === materialId &&
+          reservation.memberId !== memberId &&
+          active.has(reservation.status)
+        ) {
+          return true;
+        }
+      }
+
+      return false;
+    }
+
+    const rows = await this.sqlStore!.query<RowDataPacket>(
+      `SELECT id
+       FROM reservations
+       WHERE material_id = ?
+         AND member_id <> ?
+         AND status IN (?, ?)
+       LIMIT 1`,
+      [
+        materialId,
+        memberId,
+        ReservationStatus.QUEUED,
+        ReservationStatus.READY_FOR_PICKUP,
+      ],
+    );
+    return rows.length > 0;
   }
 
   async getReservationOrThrow(id: string): Promise<ReservationRecord> {

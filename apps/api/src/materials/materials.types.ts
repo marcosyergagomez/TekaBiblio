@@ -15,6 +15,8 @@ export type MaterialRecord = {
   releaseDate: string;
   homeBranchId: string;
   basePrice: number;
+  totalCopies?: number;
+  availableCopies?: number;
 };
 
 export type CopyRecord = {

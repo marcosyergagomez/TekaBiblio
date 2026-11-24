@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, Optional } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { RowDataPacket } from 'mysql2/promise';
+import { WhereBuilder } from '../common/where-builder';
 import { SqlStoreService } from '../database/sql-store.service';
 import { PenaltyRecord, PenaltyStatus, PenaltyType } from './penalties.types';
 
@@ -26,7 +27,7 @@ export class PenaltiesRepository {
     input: Omit<PenaltyRecord, 'id' | 'createdAt' | 'status'>,
   ): Promise<PenaltyRecord> {
     const record: PenaltyRecord = {
-      id: `pen_${randomUUID().slice(0, 8)}`,
+      id: randomUUID(),
       memberId: input.memberId,
       loanId: input.loanId,
       reservationId: input.reservationId,
@@ -120,24 +121,115 @@ export class PenaltiesRepository {
     return penalty;
   }
 
-  async list(): Promise<PenaltyRecord[]> {
+  async sumPendingByMember(memberId: string): Promise<number> {
     if (!this.isSqlEnabled()) {
-      return Array.from(this.penalties.values());
+      let total = 0;
+      for (const penalty of this.penalties.values()) {
+        if (
+          penalty.memberId === memberId &&
+          penalty.status === PenaltyStatus.PENDING
+        ) {
+          total += penalty.amount;
+        }
+      }
+
+      return Number(total.toFixed(2));
     }
+
+    const rows = await this.sqlStore!.query<RowDataPacket & { total: number }>(
+      `SELECT COALESCE(SUM(amount), 0) AS total
+       FROM penalties
+       WHERE member_id = ? AND status = ?`,
+      [memberId, PenaltyStatus.PENDING],
+    );
+    return Number(rows[0]?.total ?? 0);
+  }
+
+  async hasOpenLatePenalty(loanId: string): Promise<boolean> {
+    if (!this.isSqlEnabled()) {
+      for (const penalty of this.penalties.values()) {
+        if (
+          penalty.loanId === loanId &&
+          penalty.penaltyType === PenaltyType.LATE_RETURN &&
+          penalty.status !== PenaltyStatus.WAIVED
+        ) {
+          return true;
+        }
+      }
+
+      return false;
+    }
+
+    const rows = await this.sqlStore!.query<RowDataPacket>(
+      `SELECT id
+       FROM penalties
+       WHERE loan_id = ? AND penalty_type = ? AND status <> ?
+       LIMIT 1`,
+      [loanId, PenaltyType.LATE_RETURN, PenaltyStatus.WAIVED],
+    );
+    return rows.length > 0;
+  }
+
+  async markPaidIfPending(
+    penaltyId: string,
+  ): Promise<PenaltyRecord | undefined> {
+    if (!this.isSqlEnabled()) {
+      const penalty = this.penalties.get(penaltyId);
+      if (!penalty || penalty.status !== PenaltyStatus.PENDING) {
+        return undefined;
+      }
+
+      penalty.status = PenaltyStatus.PAID;
+      this.penalties.set(penaltyId, penalty);
+      return penalty;
+    }
+
+    const result = await this.sqlStore!.execute(
+      `UPDATE penalties
+       SET status = ?
+       WHERE id = ? AND status = ?`,
+      [PenaltyStatus.PAID, penaltyId, PenaltyStatus.PENDING],
+    );
+    if (result.affectedRows !== 1) {
+      return undefined;
+    }
+
+    return this.findById(penaltyId);
+  }
+
+  async list(
+    filters: { memberId?: string; memberHomeBranchId?: string } = {},
+  ): Promise<PenaltyRecord[]> {
+    if (!this.isSqlEnabled()) {
+      if (filters.memberHomeBranchId) {
+        return [];
+      }
+
+      return Array.from(this.penalties.values()).filter((penalty) => {
+        return !filters.memberId || penalty.memberId === filters.memberId;
+      });
+    }
+
+    const where = new WhereBuilder();
+    where.eq('p.member_id', filters.memberId);
+    where.eq('m.home_branch_id', filters.memberHomeBranchId);
 
     const rows = await this.sqlStore!.query<PenaltyRow>(
       `SELECT
-         id,
-         member_id AS memberId,
-         loan_id AS loanId,
-         reservation_id AS reservationId,
-         penalty_type AS penaltyType,
-         amount,
-         status,
-         reason,
-         created_at AS createdAt
-       FROM penalties
-       ORDER BY created_at DESC`,
+         p.id AS id,
+         p.member_id AS memberId,
+         p.loan_id AS loanId,
+         p.reservation_id AS reservationId,
+         p.penalty_type AS penaltyType,
+         p.amount AS amount,
+         p.status AS status,
+         p.reason AS reason,
+         p.created_at AS createdAt
+       FROM penalties p
+       LEFT JOIN members m ON m.id = p.member_id
+       ${where.sql()}
+       ORDER BY p.created_at DESC`,
+      where.values(),
     );
 
     return rows.map((row) => this.mapRow(row));

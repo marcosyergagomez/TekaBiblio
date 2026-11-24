@@ -11,12 +11,12 @@ VALUES
 
 INSERT IGNORE INTO users (id, branch_id, email, password_hash, role, full_name, status)
 VALUES
-  ('u_admin_global', 'branch_centro', 'admin.global@tekabiblio.local', 'demo_hash', 'admin_global', 'Admin Global', 'ACTIVE'),
-  ('u_admin_norte', 'branch_norte', 'admin.norte@tekabiblio.local', 'demo_hash', 'admin_sede', 'Admin Norte', 'ACTIVE'),
-  ('u_biblio_norte', 'branch_norte', 'biblio.norte@tekabiblio.local', 'demo_hash', 'bibliotecario', 'Bibliotecario Norte', 'ACTIVE'),
-  ('u_member_bronce', 'branch_sur', 'socio.bronce@tekabiblio.local', 'demo_hash', 'socio', 'Socio Bronce', 'ACTIVE'),
-  ('u_member_plata', 'branch_este', 'socio.plata@tekabiblio.local', 'demo_hash', 'socio', 'Socio Plata', 'ACTIVE'),
-  ('u_member_oro', 'branch_oeste', 'socio.oro@tekabiblio.local', 'demo_hash', 'socio', 'Socio Oro', 'ACTIVE');
+  ('u_admin_global', 'branch_centro', 'admin.global@tekabiblio.local', 'scrypt:a1b2c3d4e5f60718293a4b5c6d7e8f90:925463ddf3313a26df774e5391fadb3276325b1f37dca4825f926dacec80577c', 'admin_global', 'Admin Global', 'ACTIVE'),
+  ('u_admin_norte', 'branch_norte', 'admin.norte@tekabiblio.local', 'scrypt:a1b2c3d4e5f60718293a4b5c6d7e8f90:925463ddf3313a26df774e5391fadb3276325b1f37dca4825f926dacec80577c', 'admin_sede', 'Admin Norte', 'ACTIVE'),
+  ('u_biblio_norte', 'branch_norte', 'biblio.norte@tekabiblio.local', 'scrypt:a1b2c3d4e5f60718293a4b5c6d7e8f90:925463ddf3313a26df774e5391fadb3276325b1f37dca4825f926dacec80577c', 'bibliotecario', 'Bibliotecario Norte', 'ACTIVE'),
+  ('u_member_bronce', 'branch_sur', 'socio.bronce@tekabiblio.local', 'scrypt:a1b2c3d4e5f60718293a4b5c6d7e8f90:925463ddf3313a26df774e5391fadb3276325b1f37dca4825f926dacec80577c', 'socio', 'Socio Bronce', 'ACTIVE'),
+  ('u_member_plata', 'branch_este', 'socio.plata@tekabiblio.local', 'scrypt:a1b2c3d4e5f60718293a4b5c6d7e8f90:925463ddf3313a26df774e5391fadb3276325b1f37dca4825f926dacec80577c', 'socio', 'Socio Plata', 'ACTIVE'),
+  ('u_member_oro', 'branch_oeste', 'socio.oro@tekabiblio.local', 'scrypt:a1b2c3d4e5f60718293a4b5c6d7e8f90:925463ddf3313a26df774e5391fadb3276325b1f37dca4825f926dacec80577c', 'socio', 'Socio Oro', 'ACTIVE');
 
 INSERT IGNORE INTO members (id, user_id, home_branch_id, membership_level, debt_total)
 VALUES

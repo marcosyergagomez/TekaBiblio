@@ -1,4 +1,4 @@
-import { IsEnum, IsString } from 'class-validator';
+import { IsEnum, IsOptional, IsString } from 'class-validator';
 import { MembershipLevel } from '../../loans/loan-policies';
 
 export class CreateReservationDto {
@@ -14,6 +14,7 @@ export class CreateReservationDto {
   @IsString()
   pickupBranchId!: string;
 
+  @IsOptional()
   @IsEnum(MembershipLevel)
-  membershipLevel!: MembershipLevel;
+  membershipLevel?: MembershipLevel;
 }

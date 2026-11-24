@@ -31,42 +31,34 @@ export class LoansController {
     @Query() query: ListLoansDto,
     @Req() req: Request & { user?: RequestUser },
   ) {
-    const user = req.user;
-    const scopedQuery: ListLoansDto = {
-      ...query,
-    };
-
-    if (user?.role === UserRole.SOCIO && user.memberId) {
-      scopedQuery.memberId = user.memberId;
-    }
-
-    if (
-      (user?.role === UserRole.ADMIN_SEDE ||
-        user?.role === UserRole.BIBLIOTECARIO) &&
-      user.branchId
-    ) {
-      scopedQuery.pickupBranchId = scopedQuery.pickupBranchId ?? user.branchId;
-    }
-
-    return this.loansService.listLoans(scopedQuery);
+    return this.loansService.listLoans(query, req.user);
   }
 
   @Roles(UserRole.ADMIN_GLOBAL, UserRole.ADMIN_SEDE, UserRole.BIBLIOTECARIO)
   @Post()
-  async create(@Body() body: CreateLoanDto) {
-    return this.loansService.createLoan(body);
+  async create(
+    @Body() body: CreateLoanDto,
+    @Req() req: Request & { user?: RequestUser },
+  ) {
+    return this.loansService.createLoan(body, req.user);
   }
 
   @Roles(UserRole.ADMIN_GLOBAL, UserRole.ADMIN_SEDE, UserRole.BIBLIOTECARIO)
   @Post('renew')
-  async renew(@Body() body: RenewLoanDto) {
-    return this.loansService.renewLoan(body);
+  async renew(
+    @Body() body: RenewLoanDto,
+    @Req() req: Request & { user?: RequestUser },
+  ) {
+    return this.loansService.renewLoan(body, req.user);
   }
 
   @Roles(UserRole.ADMIN_GLOBAL, UserRole.ADMIN_SEDE, UserRole.BIBLIOTECARIO)
   @Post('return')
-  async close(@Body() body: ReturnLoanDto) {
-    return this.loansService.returnLoan(body);
+  async close(
+    @Body() body: ReturnLoanDto,
+    @Req() req: Request & { user?: RequestUser },
+  ) {
+    return this.loansService.returnLoan(body, req.user);
   }
 
   @Public()
@@ -82,7 +74,10 @@ export class LoansController {
     UserRole.SOCIO,
   )
   @Get(':loanId')
-  async findOne(@Param('loanId') loanId: string) {
-    return this.loansService.findOne(loanId);
+  async findOne(
+    @Param('loanId') loanId: string,
+    @Req() req: Request & { user?: RequestUser },
+  ) {
+    return this.loansService.findOne(loanId, req.user);
   }
 }

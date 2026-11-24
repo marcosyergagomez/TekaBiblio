@@ -42,7 +42,7 @@ export class AuditRepository {
       return record;
     }
 
-    await this.sqlStore!.execute(
+    const inserted = await this.sqlStore!.execute(
       `INSERT INTO audit_logs (actor_user_id, branch_id, action, entity_type, entity_id, metadata)
        VALUES (?, ?, ?, ?, ?, ?)`,
       [
@@ -66,8 +66,9 @@ export class AuditRepository {
          metadata,
          created_at AS createdAt
        FROM audit_logs
-       ORDER BY id DESC
+       WHERE id = ?
        LIMIT 1`,
+      [inserted.insertId],
     );
 
     return this.mapRow(rows[0]);
@@ -113,10 +114,14 @@ export class AuditRepository {
   }
 
   private parseMetadata(
-    raw: string | null,
+    raw: string | Record<string, unknown> | null,
   ): Record<string, unknown> | undefined {
     if (!raw) {
       return undefined;
+    }
+
+    if (typeof raw === 'object') {
+      return raw;
     }
 
     try {

@@ -1,8 +1,14 @@
 import { Injectable, Optional } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { RowDataPacket } from 'mysql2/promise';
+import { WhereBuilder } from '../common/where-builder';
 import { SqlStoreService } from '../database/sql-store.service';
 import { PaymentMethod, PaymentRecord, PaymentStatus } from './payments.types';
+
+type PaymentListFilters = {
+  memberId?: string;
+  memberHomeBranchId?: string;
+};
 
 type PaymentRow = RowDataPacket & {
   id: string;
@@ -25,7 +31,7 @@ export class PaymentsRepository {
     input: Omit<PaymentRecord, 'id' | 'paidAt' | 'status'>,
   ): Promise<PaymentRecord> {
     const payment: PaymentRecord = {
-      id: `pay_${randomUUID().slice(0, 8)}`,
+      id: randomUUID(),
       memberId: input.memberId,
       loanId: input.loanId,
       penaltyId: input.penaltyId,
@@ -58,23 +64,35 @@ export class PaymentsRepository {
     return payment;
   }
 
-  async list(): Promise<PaymentRecord[]> {
+  async list(filters: PaymentListFilters = {}): Promise<PaymentRecord[]> {
     if (!this.isSqlEnabled()) {
-      return Array.from(this.payments.values());
+      if (filters.memberHomeBranchId) {
+        return [];
+      }
+
+      return Array.from(this.payments.values()).filter((payment) => {
+        return !filters.memberId || payment.memberId === filters.memberId;
+      });
     }
 
+    const where = new WhereBuilder();
+    where.eq('p.member_id', filters.memberId);
+    where.eq('m.home_branch_id', filters.memberHomeBranchId);
     const rows = await this.sqlStore!.query<PaymentRow>(
       `SELECT
-         id,
-         member_id AS memberId,
-         loan_id AS loanId,
-         penalty_id AS penaltyId,
-         amount,
-         method,
-         status,
-         paid_at AS paidAt
-       FROM payments
-       ORDER BY paid_at DESC`,
+         p.id AS id,
+         p.member_id AS memberId,
+         p.loan_id AS loanId,
+         p.penalty_id AS penaltyId,
+         p.amount AS amount,
+         p.method AS method,
+         p.status AS status,
+         p.paid_at AS paidAt
+       FROM payments p
+       LEFT JOIN members m ON m.id = p.member_id
+       ${where.sql()}
+       ORDER BY p.paid_at DESC`,
+      where.values(),
     );
 
     return rows.map((row) => ({

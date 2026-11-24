@@ -66,6 +66,24 @@ export class MaterialsService {
     return this.materialsRepository.getCopyOrThrow(copyId);
   }
 
+  async lockCopy(copyId: string): Promise<CopyRecord> {
+    return this.materialsRepository.lockCopy(copyId);
+  }
+
+  async findAvailableCopy(
+    materialId: string,
+    branchId: string,
+  ): Promise<CopyRecord | undefined> {
+    return this.materialsRepository.findAvailableCopy(materialId, branchId);
+  }
+
+  async claimAvailableCopy(
+    copyId: string,
+    status: CopyStatus,
+  ): Promise<CopyRecord> {
+    return this.materialsRepository.claimAvailableCopy(copyId, status);
+  }
+
   async updateCopyStatus(
     copyId: string,
     status: CopyStatus,

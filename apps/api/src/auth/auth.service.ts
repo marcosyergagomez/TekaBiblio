@@ -3,6 +3,7 @@ import {
   createHash,
   randomBytes,
   randomUUID,
+  scryptSync,
   timingSafeEqual,
 } from 'node:crypto';
 import { RowDataPacket } from 'mysql2/promise';
@@ -21,6 +22,7 @@ type LoginRow = RowDataPacket & {
 
 type JwtPayload = {
   sub: string;
+  sid: string;
   role: UserRole;
   branchId?: string;
   memberId?: string;
@@ -56,6 +58,12 @@ type UserAccount = {
   passwordHash: string;
 };
 
+const SEED_PASSWORD_HASH =
+  'scrypt:a1b2c3d4e5f60718293a4b5c6d7e8f90:925463ddf3313a26df774e5391fadb3276325b1f37dca4825f926dacec80577c';
+
+const DUMMY_PASSWORD_HASH =
+  'scrypt:ffffffffffffffffffffffffffffffff:0000000000000000000000000000000000000000000000000000000000000000';
+
 const IN_MEMORY_USERS: Array<{
   email: string;
   userId: string;
@@ -67,28 +75,28 @@ const IN_MEMORY_USERS: Array<{
   {
     email: 'admin.global@tekabiblio.local',
     userId: 'u_admin_global',
-    passwordHash: 'demo_hash',
+    passwordHash: SEED_PASSWORD_HASH,
     role: UserRole.ADMIN_GLOBAL,
     branchId: 'branch_centro',
   },
   {
     email: 'admin.norte@tekabiblio.local',
     userId: 'u_admin_norte',
-    passwordHash: 'demo_hash',
+    passwordHash: SEED_PASSWORD_HASH,
     role: UserRole.ADMIN_SEDE,
     branchId: 'branch_norte',
   },
   {
     email: 'biblio.norte@tekabiblio.local',
     userId: 'u_biblio_norte',
-    passwordHash: 'demo_hash',
+    passwordHash: SEED_PASSWORD_HASH,
     role: UserRole.BIBLIOTECARIO,
     branchId: 'branch_norte',
   },
   {
     email: 'socio.bronce@tekabiblio.local',
     userId: 'u_member_bronce',
-    passwordHash: 'demo_hash',
+    passwordHash: SEED_PASSWORD_HASH,
     role: UserRole.SOCIO,
     branchId: 'branch_sur',
     memberId: 'mbr_bronce_01',
@@ -96,7 +104,7 @@ const IN_MEMORY_USERS: Array<{
   {
     email: 'socio.plata@tekabiblio.local',
     userId: 'u_member_plata',
-    passwordHash: 'demo_hash',
+    passwordHash: SEED_PASSWORD_HASH,
     role: UserRole.SOCIO,
     branchId: 'branch_este',
     memberId: 'mbr_plata_01',
@@ -104,7 +112,7 @@ const IN_MEMORY_USERS: Array<{
   {
     email: 'socio.oro@tekabiblio.local',
     userId: 'u_member_oro',
-    passwordHash: 'demo_hash',
+    passwordHash: SEED_PASSWORD_HASH,
     role: UserRole.SOCIO,
     branchId: 'branch_oeste',
     memberId: 'mbr_oro_01',
@@ -114,7 +122,6 @@ const IN_MEMORY_USERS: Array<{
 @Injectable()
 export class AuthService {
   private readonly inMemorySessions = new Map<string, StoredSession>();
-  private sessionsSqlUnavailable = false;
 
   constructor(@Optional() private readonly sqlStore?: SqlStoreService) {}
 
@@ -122,22 +129,27 @@ export class AuthService {
     email: string,
     password: string,
   ): Promise<{ accessToken: string; refreshToken: string; user: RequestUser }> {
+    const normalizedEmail = email.trim().toLowerCase();
     const account = this.isSqlEnabled()
-      ? await this.resolveUserAccountFromSql(email)
-      : this.resolveUserAccountFromMemory(email);
+      ? await this.resolveUserAccountFromSql(normalizedEmail)
+      : this.resolveUserAccountFromMemory(normalizedEmail);
 
     if (!account || !this.verifyPassword(password, account.passwordHash)) {
+      if (!account) {
+        this.verifyPassword(password, DUMMY_PASSWORD_HASH);
+      }
+
       throw new UnauthorizedException('Invalid credentials');
     }
 
     const user = account.user;
 
     await this.pruneExpiredSessions();
-    const refreshToken = await this.createRefreshSession(user);
+    const session = await this.createRefreshSession(user);
 
     return {
-      accessToken: this.signAccessToken(user),
-      refreshToken,
+      accessToken: this.signAccessToken(user, session.sessionId),
+      refreshToken: session.refreshToken,
       user,
     };
   }
@@ -168,11 +180,11 @@ export class AuthService {
     }
 
     await this.revokeSession(session.sessionId);
-    const nextRefreshToken = await this.createRefreshSession(session.user);
+    const nextSession = await this.createRefreshSession(session.user);
 
     return {
-      accessToken: this.signAccessToken(session.user),
-      refreshToken: nextRefreshToken,
+      accessToken: this.signAccessToken(session.user, nextSession.sessionId),
+      refreshToken: nextSession.refreshToken,
       user: session.user,
     };
   }
@@ -201,46 +213,63 @@ export class AuthService {
     return { user };
   }
 
-  verifyAccessToken(token: string): RequestUser {
+  async verifyAccessToken(token: string): Promise<RequestUser> {
     try {
-      const payload = verify(token, this.jwtSecret()) as JwtPayload;
+      const payload = verify(token, this.jwtSecret(), {
+        algorithms: ['HS256'],
+      }) as JwtPayload;
 
       if (
         !payload?.sub ||
+        !payload?.sid ||
         !payload?.role ||
         !Object.values(UserRole).includes(payload.role)
       ) {
         throw new UnauthorizedException('Invalid bearer token payload');
       }
 
-      return {
-        userId: payload.sub,
-        role: payload.role,
-        branchId: payload.branchId,
-        memberId: payload.memberId,
-      };
-    } catch {
+      const session = await this.findSession(payload.sid);
+      if (
+        !session ||
+        session.revokedAt ||
+        session.user.userId !== payload.sub ||
+        new Date(session.expiresAt).getTime() <= Date.now()
+      ) {
+        throw new UnauthorizedException('Invalid or expired bearer token');
+      }
+
+      return session.user;
+    } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
+
       throw new UnauthorizedException('Invalid or expired bearer token');
     }
   }
 
-  private signAccessToken(user: RequestUser): string {
+  private signAccessToken(user: RequestUser, sessionId: string): string {
     const expiresIn = (process.env.JWT_EXPIRES_IN ??
       '8h') as SignOptions['expiresIn'];
 
     const payload: JwtPayload = {
       sub: user.userId,
+      sid: sessionId,
       role: user.role,
       branchId: user.branchId,
       memberId: user.memberId,
     };
 
     return sign(payload, this.jwtSecret(), {
+      algorithm: 'HS256',
       expiresIn,
     });
   }
 
-  private async createRefreshSession(user: RequestUser): Promise<string> {
+  private async createRefreshSession(user: RequestUser): Promise<{
+    refreshToken: string;
+    sessionId: string;
+  }> {
     const sessionId = randomUUID();
     const tokenSecret = randomBytes(48).toString('hex');
     const refreshToken = `${sessionId}.${tokenSecret}`;
@@ -255,7 +284,7 @@ export class AuthService {
     };
 
     await this.saveSession(session);
-    return refreshToken;
+    return { refreshToken, sessionId };
   }
 
   private async getSessionFromRefreshToken(
@@ -273,7 +302,12 @@ export class AuthService {
       return null;
     }
 
-    if (session.refreshHash !== this.hashTokenSecret(parsed.secret)) {
+    if (
+      !this.hashesMatch(
+        session.refreshHash,
+        this.hashTokenSecret(parsed.secret),
+      )
+    ) {
       return null;
     }
 
@@ -283,13 +317,25 @@ export class AuthService {
   private parseRefreshToken(
     refreshToken: string,
   ): { sessionId: string; secret: string } | null {
-    const [sessionId, secret] = refreshToken.split('.');
-
-    if (!sessionId || !secret) {
+    const separator = refreshToken.indexOf('.');
+    if (separator <= 0 || separator === refreshToken.length - 1) {
       return null;
     }
 
-    return { sessionId, secret };
+    return {
+      sessionId: refreshToken.slice(0, separator),
+      secret: refreshToken.slice(separator + 1),
+    };
+  }
+
+  private hashesMatch(left: string, right: string): boolean {
+    const leftBuffer = Buffer.from(left);
+    const rightBuffer = Buffer.from(right);
+    if (leftBuffer.length !== rightBuffer.length) {
+      return false;
+    }
+
+    return timingSafeEqual(leftBuffer, rightBuffer);
   }
 
   private hashTokenSecret(secret: string): string {
@@ -297,44 +343,43 @@ export class AuthService {
   }
 
   private getRefreshExpiryIso(): string {
-    const days = Number(process.env.REFRESH_TOKEN_EXPIRES_DAYS ?? 14);
+    const parsedDays = Number(process.env.REFRESH_TOKEN_EXPIRES_DAYS ?? 14);
+    const days =
+      Number.isFinite(parsedDays) && parsedDays > 0
+        ? Math.floor(parsedDays)
+        : 14;
     const now = new Date();
     now.setUTCDate(now.getUTCDate() + days);
     return now.toISOString();
   }
 
   private async saveSession(session: StoredSession): Promise<void> {
-    if (this.canUseSqlSessions()) {
-      try {
-        await this.sqlStore!.execute(
-          `INSERT INTO auth_sessions (
-             id, user_id, role, branch_id, member_id, refresh_hash, expires_at, revoked_at
-           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-          [
-            session.sessionId,
-            session.user.userId,
-            session.user.role,
-            session.user.branchId ?? null,
-            session.user.memberId ?? null,
-            session.refreshHash,
-            this.toMysqlDateTime(session.expiresAt),
-            session.revokedAt ? this.toMysqlDateTime(session.revokedAt) : null,
-          ],
-        );
-        return;
-      } catch {
-        this.sessionsSqlUnavailable = true;
-      }
+    if (this.isSqlEnabled()) {
+      await this.sqlStore!.execute(
+        `INSERT INTO auth_sessions (
+           id, user_id, role, branch_id, member_id, refresh_hash, expires_at, revoked_at
+         ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          session.sessionId,
+          session.user.userId,
+          session.user.role,
+          session.user.branchId ?? null,
+          session.user.memberId ?? null,
+          session.refreshHash,
+          this.toMysqlDateTime(session.expiresAt),
+          session.revokedAt ? this.toMysqlDateTime(session.revokedAt) : null,
+        ],
+      );
+      return;
     }
 
     this.inMemorySessions.set(session.sessionId, session);
   }
 
   private async findSession(sessionId: string): Promise<StoredSession | null> {
-    if (this.canUseSqlSessions()) {
-      try {
-        const rows = await this.sqlStore!.query<SessionRow>(
-          `SELECT
+    if (this.isSqlEnabled()) {
+      const rows = await this.sqlStore!.query<SessionRow>(
+        `SELECT
              id AS sessionId,
              user_id AS userId,
              role,
@@ -346,31 +391,28 @@ export class AuthService {
            FROM auth_sessions
            WHERE id = ?
            LIMIT 1`,
-          [sessionId],
-        );
+        [sessionId],
+      );
 
-        const row = rows[0];
-        if (!row || !this.isValidRole(row.role)) {
-          return null;
-        }
-
-        return {
-          sessionId: row.sessionId,
-          user: {
-            userId: row.userId,
-            role: row.role,
-            branchId: row.branchId ?? undefined,
-            memberId: row.memberId ?? undefined,
-          },
-          refreshHash: row.refreshHash,
-          expiresAt: new Date(row.expiresAt).toISOString(),
-          revokedAt: row.revokedAt
-            ? new Date(row.revokedAt).toISOString()
-            : undefined,
-        };
-      } catch {
-        this.sessionsSqlUnavailable = true;
+      const row = rows[0];
+      if (!row || !this.isValidRole(row.role)) {
+        return null;
       }
+
+      return {
+        sessionId: row.sessionId,
+        user: {
+          userId: row.userId,
+          role: row.role,
+          branchId: row.branchId ?? undefined,
+          memberId: row.memberId ?? undefined,
+        },
+        refreshHash: row.refreshHash,
+        expiresAt: new Date(row.expiresAt).toISOString(),
+        revokedAt: row.revokedAt
+          ? new Date(row.revokedAt).toISOString()
+          : undefined,
+      };
     }
 
     return this.inMemorySessions.get(sessionId) ?? null;
@@ -379,17 +421,14 @@ export class AuthService {
   private async revokeSession(sessionId: string): Promise<void> {
     const revokedAtIso = new Date().toISOString();
 
-    if (this.canUseSqlSessions()) {
-      try {
-        await this.sqlStore!.execute(
-          `UPDATE auth_sessions
-           SET revoked_at = ?
-           WHERE id = ? AND revoked_at IS NULL`,
-          [this.toMysqlDateTime(revokedAtIso), sessionId],
-        );
-      } catch {
-        this.sessionsSqlUnavailable = true;
-      }
+    if (this.isSqlEnabled()) {
+      await this.sqlStore!.execute(
+        `UPDATE auth_sessions
+         SET revoked_at = ?
+         WHERE id = ? AND revoked_at IS NULL`,
+        [this.toMysqlDateTime(revokedAtIso), sessionId],
+      );
+      return;
     }
 
     const session = this.inMemorySessions.get(sessionId);
@@ -403,26 +442,23 @@ export class AuthService {
     const revokedAtIso = new Date().toISOString();
     let revokedCount = 0;
 
-    if (this.canUseSqlSessions()) {
-      try {
-        const rows = await this.sqlStore!.query<CountRow>(
-          `SELECT COUNT(*) AS total
-           FROM auth_sessions
-           WHERE user_id = ? AND revoked_at IS NULL`,
-          [userId],
-        );
+    if (this.isSqlEnabled()) {
+      const rows = await this.sqlStore!.query<CountRow>(
+        `SELECT COUNT(*) AS total
+         FROM auth_sessions
+         WHERE user_id = ? AND revoked_at IS NULL`,
+        [userId],
+      );
 
-        revokedCount = Number(rows[0]?.total ?? 0);
+      revokedCount = Number(rows[0]?.total ?? 0);
 
-        await this.sqlStore!.execute(
-          `UPDATE auth_sessions
-           SET revoked_at = ?
-           WHERE user_id = ? AND revoked_at IS NULL`,
-          [this.toMysqlDateTime(revokedAtIso), userId],
-        );
-      } catch {
-        this.sessionsSqlUnavailable = true;
-      }
+      await this.sqlStore!.execute(
+        `UPDATE auth_sessions
+         SET revoked_at = ?
+         WHERE user_id = ? AND revoked_at IS NULL`,
+        [this.toMysqlDateTime(revokedAtIso), userId],
+      );
+      return revokedCount;
     }
 
     for (const [sessionId, session] of this.inMemorySessions.entries()) {
@@ -441,16 +477,14 @@ export class AuthService {
   private async pruneExpiredSessions(): Promise<void> {
     const now = new Date();
 
-    if (this.canUseSqlSessions()) {
-      try {
-        await this.sqlStore!.execute(
-          `DELETE FROM auth_sessions
-           WHERE expires_at < ?`,
-          [this.toMysqlDateTime(now.toISOString())],
-        );
-      } catch {
-        this.sessionsSqlUnavailable = true;
-      }
+    if (this.isSqlEnabled()) {
+      await this.sqlStore!.execute(
+        `DELETE FROM auth_sessions
+         WHERE expires_at < ?
+         LIMIT 500`,
+        [this.toMysqlDateTime(now.toISOString())],
+      );
+      return;
     }
 
     for (const [sessionId, session] of this.inMemorySessions.entries()) {
@@ -475,7 +509,7 @@ export class AuthService {
          u.status AS status
        FROM users u
        LEFT JOIN members m ON m.user_id = u.id
-       WHERE u.email = ?
+       WHERE LOWER(u.email) = ?
        LIMIT 1`,
       [email],
     );
@@ -497,7 +531,9 @@ export class AuthService {
   }
 
   private resolveUserAccountFromMemory(email: string): UserAccount | null {
-    const user = IN_MEMORY_USERS.find((item) => item.email === email);
+    const user = IN_MEMORY_USERS.find(
+      (item) => item.email.toLowerCase() === email,
+    );
 
     if (!user) {
       return null;
@@ -515,65 +551,19 @@ export class AuthService {
   }
 
   private verifyPassword(password: string, storedHash: string): boolean {
-    if (storedHash === 'demo_hash') {
-      if (!this.isDemoAuthEnabled()) {
-        return false;
-      }
-
-      const expectedDemoPassword = this.getDemoAuthPassword();
-      if (!expectedDemoPassword) {
-        return false;
-      }
-
-      return this.safeCompare(password, expectedDemoPassword);
+    if (password.length < 8 || password.length > 128) {
+      return false;
     }
 
-    if (storedHash.startsWith('sha256:')) {
-      const expectedHash = storedHash.slice('sha256:'.length);
-      const providedHash = createHash('sha256').update(password).digest('hex');
-      return this.safeCompare(providedHash, expectedHash);
+    if (storedHash.startsWith('scrypt:')) {
+      return verifyStoredPassword(password, storedHash);
     }
 
     return false;
   }
 
-  private isDemoAuthEnabled(): boolean {
-    if (process.env.NODE_ENV === 'test') {
-      return true;
-    }
-
-    return process.env.ALLOW_DEMO_PASSWORD_AUTH === '1';
-  }
-
-  private getDemoAuthPassword(): string | undefined {
-    if (process.env.DEMO_AUTH_PASSWORD) {
-      return process.env.DEMO_AUTH_PASSWORD;
-    }
-
-    if (process.env.NODE_ENV === 'test') {
-      return 'Demo12345!';
-    }
-
-    return undefined;
-  }
-
-  private safeCompare(left: string, right: string): boolean {
-    const leftBuffer = Buffer.from(left);
-    const rightBuffer = Buffer.from(right);
-
-    if (leftBuffer.length !== rightBuffer.length) {
-      return false;
-    }
-
-    return timingSafeEqual(leftBuffer, rightBuffer);
-  }
-
   private isSqlEnabled(): boolean {
     return this.sqlStore?.isEnabled() ?? false;
-  }
-
-  private canUseSqlSessions(): boolean {
-    return this.isSqlEnabled() && !this.sessionsSqlUnavailable;
   }
 
   private toMysqlDateTime(value: string): string {
@@ -606,4 +596,25 @@ export class AuthService {
       'JWT_SECRET must be set with at least 32 characters and cannot use insecure defaults',
     );
   }
+}
+
+const SCRYPT_KEY_LENGTH = 32;
+
+function verifyStoredPassword(password: string, storedHash: string): boolean {
+  if (storedHash.startsWith('scrypt:')) {
+    const [, salt, expectedHex] = storedHash.split(':');
+    if (!salt || !expectedHex) {
+      return false;
+    }
+
+    const actual = scryptSync(password, salt, SCRYPT_KEY_LENGTH);
+    const expected = Buffer.from(expectedHex, 'hex');
+    if (actual.length !== expected.length) {
+      return false;
+    }
+
+    return timingSafeEqual(actual, expected);
+  }
+
+  return false;
 }

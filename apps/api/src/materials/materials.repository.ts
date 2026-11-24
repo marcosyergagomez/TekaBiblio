@@ -6,9 +6,13 @@ import {
 } from '@nestjs/common';
 import { randomUUID } from 'node:crypto';
 import { RowDataPacket } from 'mysql2/promise';
-import { SqlStoreService } from '../database/sql-store.service';
+import {
+  assertMemoryStoreIsTestOnly,
+  SqlStoreService,
+} from '../database/sql-store.service';
 import { MaterialType } from '../loans/loan-policies';
-import { paginateFromQuery } from '../common/pagination';
+import { paginateFromQuery, resolvePagination } from '../common/pagination';
+import { escapeLike, WhereBuilder } from '../common/where-builder';
 import { CreateCopyDto } from './dto/create-copy.dto';
 import { CreateMaterialDto } from './dto/create-material.dto';
 import { ListCopiesDto } from './dto/list-copies.dto';
@@ -23,6 +27,8 @@ type MaterialRow = RowDataPacket & {
   releaseDate: Date | string;
   homeBranchId: string;
   basePrice: number;
+  totalCopies?: number;
+  availableCopies?: number;
 };
 
 type CopyRow = RowDataPacket & {
@@ -38,6 +44,7 @@ export class MaterialsRepository {
   private readonly copies = new Map<string, CopyRecord>();
 
   constructor(@Optional() private readonly sqlStore?: SqlStoreService) {
+    assertMemoryStoreIsTestOnly(this.sqlStore, 'MaterialsRepository');
     if (!this.isSqlEnabled()) {
       this.bootstrapInMemorySeed();
     }
@@ -86,7 +93,7 @@ export class MaterialsRepository {
 
   async createMaterial(input: CreateMaterialDto): Promise<MaterialRecord> {
     const material: MaterialRecord = {
-      id: `mat_${randomUUID().slice(0, 8)}`,
+      id: randomUUID(),
       title: input.title,
       materialType: input.materialType,
       releaseDate: input.releaseDate,
@@ -119,7 +126,7 @@ export class MaterialsRepository {
     await this.getMaterialOrThrow(input.materialId);
 
     const copy: CopyRecord = {
-      id: `copy_${randomUUID().slice(0, 8)}`,
+      id: randomUUID(),
       materialId: input.materialId,
       branchId: input.branchId,
       status: CopyStatus.AVAILABLE,
@@ -179,6 +186,31 @@ export class MaterialsRepository {
     };
   }
 
+  async lockCopy(copyId: string): Promise<CopyRecord> {
+    if (!this.isSqlEnabled()) {
+      return this.getCopyOrThrow(copyId);
+    }
+
+    const rows = await this.sqlStore!.query<CopyRow>(
+      `SELECT id, material_id AS materialId, branch_id AS branchId, status
+       FROM copies
+       WHERE id = ?
+       FOR UPDATE`,
+      [copyId],
+    );
+    const row = rows[0];
+    if (!row) {
+      throw new NotFoundException(`Copy ${copyId} not found`);
+    }
+
+    return {
+      id: row.id,
+      materialId: row.materialId,
+      branchId: row.branchId,
+      status: row.status as CopyStatus,
+    };
+  }
+
   async getCopyOrThrow(copyId: string): Promise<CopyRecord> {
     if (!this.isSqlEnabled()) {
       const copy = this.copies.get(copyId);
@@ -210,6 +242,79 @@ export class MaterialsRepository {
     };
   }
 
+  async findAvailableCopy(
+    materialId: string,
+    branchId: string,
+  ): Promise<CopyRecord | undefined> {
+    if (!this.isSqlEnabled()) {
+      for (const copy of this.copies.values()) {
+        if (
+          copy.materialId === materialId &&
+          copy.branchId === branchId &&
+          copy.status === CopyStatus.AVAILABLE
+        ) {
+          return copy;
+        }
+      }
+
+      return undefined;
+    }
+
+    const rows = await this.sqlStore!.query<CopyRow>(
+      `SELECT id, material_id AS materialId, branch_id AS branchId, status
+       FROM copies
+       WHERE material_id = ? AND branch_id = ? AND status = ?
+       LIMIT 1`,
+      [materialId, branchId, CopyStatus.AVAILABLE],
+    );
+    const row = rows[0];
+    if (!row) {
+      return undefined;
+    }
+
+    return {
+      id: row.id,
+      materialId: row.materialId,
+      branchId: row.branchId,
+      status: row.status as CopyStatus,
+    };
+  }
+
+  async claimAvailableCopy(
+    copyId: string,
+    status: CopyStatus,
+  ): Promise<CopyRecord> {
+    if (!this.isSqlEnabled()) {
+      const copy = this.copies.get(copyId);
+      if (!copy) {
+        throw new NotFoundException(`Copy ${copyId} not found`);
+      }
+
+      if (copy.status !== CopyStatus.AVAILABLE) {
+        throw new ConflictException(
+          `Copy ${copyId} is not available. Current status: ${copy.status}`,
+        );
+      }
+
+      copy.status = status;
+      this.copies.set(copyId, copy);
+      return { ...copy };
+    }
+
+    const result = await this.sqlStore!.execute(
+      `UPDATE copies SET status = ? WHERE id = ? AND status = ?`,
+      [status, copyId, CopyStatus.AVAILABLE],
+    );
+    if (result.affectedRows === 1) {
+      return this.getCopyOrThrow(copyId);
+    }
+
+    const current = await this.getCopyOrThrow(copyId);
+    throw new ConflictException(
+      `Copy ${copyId} is not available. Current status: ${current.status}`,
+    );
+  }
+
   async updateCopyStatus(
     copyId: string,
     status: CopyStatus,
@@ -238,6 +343,10 @@ export class MaterialsRepository {
     page: number;
     pageSize: number;
   }> {
+    if (this.isSqlEnabled()) {
+      return this.searchMaterialsSql(query);
+    }
+
     let items = await this.listMaterials();
 
     if (query.q) {
@@ -255,8 +364,8 @@ export class MaterialsRepository {
       items = items.filter((item) => item.homeBranchId === query.homeBranchId);
     }
 
+    const copies = await this.listCopies();
     if (query.availableOnly) {
-      const copies = await this.listCopies();
       const availableMaterialIds = new Set(
         copies
           .filter((copy) => copy.status === CopyStatus.AVAILABLE)
@@ -265,6 +374,7 @@ export class MaterialsRepository {
       items = items.filter((item) => availableMaterialIds.has(item.id));
     }
 
+    items = items.map((item) => this.withCopyCounts(item, copies));
     return paginateFromQuery(items, query, 20);
   }
 
@@ -274,6 +384,10 @@ export class MaterialsRepository {
     page: number;
     pageSize: number;
   }> {
+    if (this.isSqlEnabled()) {
+      return this.searchCopiesSql(query);
+    }
+
     let items = await this.listCopies();
 
     if (query.materialId) {
@@ -362,6 +476,124 @@ export class MaterialsRepository {
       materialId,
     ]);
     return { deleted: true, materialId };
+  }
+
+  private async searchMaterialsSql(query: ListMaterialsDto): Promise<{
+    items: MaterialRecord[];
+    total: number;
+    page: number;
+    pageSize: number;
+  }> {
+    const pagination = resolvePagination(query, 20);
+    const where = new WhereBuilder();
+    if (query.q) {
+      where.raw("title LIKE ? ESCAPE '\\\\'", `%${escapeLike(query.q)}%`);
+    }
+    where.eq('material_type', query.materialType);
+    where.eq('home_branch_id', query.homeBranchId);
+    if (query.availableOnly) {
+      where.raw(
+        "EXISTS (SELECT 1 FROM copies c WHERE c.material_id = materials.id AND c.status = 'AVAILABLE')",
+      );
+    }
+
+    const countRows = await this.sqlStore!.query<
+      RowDataPacket & { total: number }
+    >(`SELECT COUNT(*) AS total FROM materials ${where.sql()}`, where.values());
+    const rows = await this.sqlStore!.query<MaterialRow>(
+      `SELECT id, title, material_type AS materialType, release_date AS releaseDate,
+              home_branch_id AS homeBranchId, base_price AS basePrice,
+              (SELECT COUNT(*) FROM copies c WHERE c.material_id = materials.id) AS totalCopies,
+              (SELECT COUNT(*) FROM copies c WHERE c.material_id = materials.id AND c.status = 'AVAILABLE') AS availableCopies
+       FROM materials
+       ${where.sql()}
+       ORDER BY title ASC
+       LIMIT ? OFFSET ?`,
+      [
+        ...where.values(),
+        pagination.pageSize,
+        (pagination.page - 1) * pagination.pageSize,
+      ],
+    );
+
+    return {
+      items: rows.map((row) => this.mapMaterialRow(row)),
+      total: Number(countRows[0]?.total ?? 0),
+      page: pagination.page,
+      pageSize: pagination.pageSize,
+    };
+  }
+
+  private async searchCopiesSql(query: ListCopiesDto): Promise<{
+    items: CopyRecord[];
+    total: number;
+    page: number;
+    pageSize: number;
+  }> {
+    const pagination = resolvePagination(query, 20);
+    const where = new WhereBuilder();
+    where.eq('material_id', query.materialId);
+    where.eq('branch_id', query.branchId);
+    where.eq('status', query.status);
+
+    const countRows = await this.sqlStore!.query<
+      RowDataPacket & { total: number }
+    >(`SELECT COUNT(*) AS total FROM copies ${where.sql()}`, where.values());
+    const rows = await this.sqlStore!.query<CopyRow>(
+      `SELECT id, material_id AS materialId, branch_id AS branchId, status
+       FROM copies
+       ${where.sql()}
+       ORDER BY id ASC
+       LIMIT ? OFFSET ?`,
+      [
+        ...where.values(),
+        pagination.pageSize,
+        (pagination.page - 1) * pagination.pageSize,
+      ],
+    );
+
+    return {
+      items: rows.map((row) => ({
+        id: row.id,
+        materialId: row.materialId,
+        branchId: row.branchId,
+        status: row.status as CopyStatus,
+      })),
+      total: Number(countRows[0]?.total ?? 0),
+      page: pagination.page,
+      pageSize: pagination.pageSize,
+    };
+  }
+
+  private mapMaterialRow(row: MaterialRow): MaterialRecord {
+    return {
+      id: row.id,
+      title: row.title,
+      materialType: row.materialType as MaterialRecord['materialType'],
+      releaseDate: this.dateToIsoDate(row.releaseDate),
+      homeBranchId: row.homeBranchId,
+      basePrice: Number(row.basePrice),
+      totalCopies:
+        row.totalCopies === undefined ? undefined : Number(row.totalCopies),
+      availableCopies:
+        row.availableCopies === undefined
+          ? undefined
+          : Number(row.availableCopies),
+    };
+  }
+
+  private withCopyCounts(
+    material: MaterialRecord,
+    copies: CopyRecord[],
+  ): MaterialRecord {
+    const owned = copies.filter((copy) => copy.materialId === material.id);
+    return {
+      ...material,
+      totalCopies: owned.length,
+      availableCopies: owned.filter(
+        (copy) => copy.status === CopyStatus.AVAILABLE,
+      ).length,
+    };
   }
 
   private isSqlEnabled(): boolean {

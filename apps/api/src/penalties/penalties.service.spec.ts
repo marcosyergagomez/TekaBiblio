@@ -66,10 +66,6 @@ describe('PenaltiesService', () => {
       copyId: copy.id,
       pickupBranchId: 'branch_centro',
       membershipLevel: MembershipLevel.BRONCE,
-      activeLoansCount: 0,
-      debtTotal: 0,
-      maxOverdueDays: 0,
-      overdueLoansLast60Days: 0,
       startDate: thirtyDaysAgo,
     });
 
